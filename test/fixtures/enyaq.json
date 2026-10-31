@@ -1,0 +1,68 @@
+{
+  "vehicle": {
+    "vin": "TMBJB9NY5RF999999",
+    "name": "My Enyaq",
+    "licensePlate": "1MB 1234",
+    "status": {
+      "overall": {
+        "doorsLocked": "YES",
+        "locked": "YES",
+        "doors": "CLOSED",
+        "windows": "CLOSED",
+        "lights": "OFF",
+        "reliableLockStatus": "LOCKED"
+      },
+      "detail": { "sunroof": "UNSUPPORTED", "trunk": "CLOSED", "bonnet": "CLOSED" },
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
+    "odometer": { "mileageInKm": 12345, "carCapturedTimestamp": "2026-10-31T08:00:00Z" },
+    "parkingPosition": {
+      "state": "PARKED",
+      "gpsCoordinates": { "latitude": 50.4128, "longitude": 14.9069 },
+      "formattedAddress": "Václava Klementa 869, 29301 Mladá Boleslav, Czechia"
+    },
+    "airConditioning": {
+      "state": "OFF",
+      "targetTemperature": { "value": 21.5, "unit": "CELSIUS" },
+      "airConditioningWithoutExternalPower": true,
+      "airConditioningAtUnlock": false,
+      "windowHeating": { "enabled": true, "front": "OFF", "rear": "OFF" },
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
+    "activeVentilation": { "state": "OFF", "durationInSeconds": 600 },
+    "charging": {
+      "isVehicleInSavedLocation": true,
+      "status": {
+        "chargingRateInKilometersPerHour": 40.5,
+        "chargePowerInKw": 10.8,
+        "remainingTimeToFullyChargedInMinutes": 95,
+        "state": "CHARGING",
+        "chargeType": "AC",
+        "plugConnectionState": "CONNECTED",
+        "plugLockState": "LOCKED",
+        "battery": { "remainingCruisingRangeInMeters": 245000, "stateOfChargeInPercent": 62 }
+      },
+      "settings": {
+        "targetStateOfChargeInPercent": 80,
+        "preferredChargeMode": "MANUAL",
+        "availableChargeModes": ["MANUAL", "TIMER"],
+        "maxChargeCurrentAc": "MAXIMUM"
+      },
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
+    "operations": [
+      { "name": "startCharging" },
+      { "name": "stopCharging" },
+      { "name": "setChargingLimit" },
+      { "name": "setChargeMode" },
+      { "name": "startAirConditioning" },
+      { "name": "stopAirConditioning" },
+      { "name": "startActiveVentilation" },
+      { "name": "stopActiveVentilation" }
+    ]
+  },
+  "errors": [
+    { "type": "FUEL_STATUS_UNSUPPORTED", "description": "Fuel status is not supported." },
+    { "type": "AUXILIARY_HEATING_UNSUPPORTED", "description": "Auxiliary heating is not supported." }
+  ]
+}

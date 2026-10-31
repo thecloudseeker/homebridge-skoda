@@ -1,0 +1,31 @@
+{
+  "vehicle": {
+    "vin": "TMBJB9NY5RF999999",
+    "name": "Octavia",
+    "status": {
+      "overall": {
+        "doorsLocked": "NO",
+        "locked": "NO",
+        "doors": "OPEN",
+        "windows": "UNSUPPORTED",
+        "lights": "OFF",
+        "reliableLockStatus": "UNLOCKED"
+      },
+      "detail": { "sunroof": "OPEN", "trunk": "OPEN", "bonnet": "UNKNOWN" }
+    },
+    "fuelStatus": {
+      "carType": "DIESEL",
+      "totalRangeInKm": 780,
+      "primaryEngineRange": { "engineType": "DIESEL", "currentFuelLevelInPercent": 65, "remainingRangeInKm": 780 }
+    },
+    "odometer": { "mileageInKm": 54321 },
+    "parkingPosition": { "state": "IN_MOTION" },
+    "auxiliaryHeating": { "state": "OFF", "startMode": "HEATING", "durationInSeconds": 1800 },
+    "operations": [{ "name": "startAuxiliaryHeating" }, { "name": "stopAuxiliaryHeating" }]
+  },
+  "errors": [
+    { "type": "CHARGING_UNSUPPORTED" },
+    { "type": "AIR_CONDITIONING_UNSUPPORTED" },
+    { "type": "ACTIVE_VENTILATION_UNSUPPORTED" }
+  ]
+}
