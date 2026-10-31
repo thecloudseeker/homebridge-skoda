@@ -220,3 +220,48 @@ describe('mergeSnapshot', () => {
     expect(next.fetchedAt).toBe(2);
   });
 });
+
+describe('anonymized live response of a gasoline vehicle', () => {
+  const live = loadFixture('gasoline-live');
+  const snapshot = snapshotOf(live);
+
+  it('offers only body sensors, presence and active ventilation', () => {
+    const supported = (
+      [
+        'battery',
+        'stateOfChargeSensor',
+        'charging',
+        'chargingLimit',
+        'climate',
+        'auxiliaryHeating',
+        'activeVentilation',
+        'presence',
+        'doors',
+        'windows',
+        'trunk',
+        'bonnet',
+        'sunroof',
+        'lock',
+      ] as const
+    ).filter((feature) => featureSupport(snapshot, feature));
+    expect(supported).toEqual(['activeVentilation', 'presence', 'doors', 'windows', 'trunk', 'bonnet', 'sunroof', 'lock']);
+  });
+
+  it('ignores the state of charge the API reports for a gasoline engine', () => {
+    // The real API sends currentSoCInPercent: 100 for engineType GASOLINE.
+    expect(live.vehicle.fuelStatus?.primaryEngineRange?.currentSoCInPercent).toBe(100);
+    expect(stateOfCharge(live.vehicle)).toBeUndefined();
+  });
+
+  it('maps the closed and locked body', () => {
+    expect(bodyValues(live.vehicle)).toEqual({
+      doorsOpen: false,
+      windowsOpen: false,
+      trunkOpen: false,
+      bonnetOpen: false,
+      sunroofOpen: false,
+      locked: true,
+    });
+    expect(isActiveVentilationOn(live.vehicle)).toBe(false);
+  });
+});

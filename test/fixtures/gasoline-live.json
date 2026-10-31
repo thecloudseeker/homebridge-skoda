@@ -1,0 +1,72 @@
+{
+  "vehicle": {
+    "activeVentilation": {
+      "state": "OFF",
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z",
+      "durationInSeconds": 600
+    },
+    "fuelStatus": {
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z",
+      "carType": "GASOLINE",
+      "primaryEngineRange": {
+        "currentFuelLevelInPercent": 100,
+        "currentSoCInPercent": 100,
+        "engineType": "GASOLINE",
+        "remainingRangeInKm": 760
+      },
+      "totalRangeInKm": 760
+    },
+    "name": "Octavia",
+    "odometer": {
+      "mileageInKm": 54321,
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
+    "operations": [
+      {
+        "name": "startActiveVentilation"
+      },
+      {
+        "name": "stopActiveVentilation"
+      }
+    ],
+    "parkingPosition": {
+      "state": "PARKED",
+      "formattedAddress": "Václava Klementa 869, 29301 Mladá Boleslav, Czechia",
+      "gpsCoordinates": {
+        "latitude": 50.4128,
+        "longitude": 14.9069
+      }
+    },
+    "status": {
+      "overall": {
+        "doorsLocked": "YES",
+        "locked": "YES",
+        "doors": "CLOSED",
+        "windows": "CLOSED",
+        "lights": "OFF",
+        "reliableLockStatus": "LOCKED"
+      },
+      "detail": {
+        "sunroof": "CLOSED",
+        "trunk": "CLOSED",
+        "bonnet": "CLOSED"
+      },
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
+    "vin": "TMBJB9NY5RF999999"
+  },
+  "errors": [
+    {
+      "type": "CHARGING_UNSUPPORTED",
+      "description": "Charging status is not supported by the vehicle."
+    },
+    {
+      "type": "AIR_CONDITIONING_UNSUPPORTED",
+      "description": "Air conditioning information is not supported by the vehicle."
+    },
+    {
+      "type": "AUXILIARY_HEATING_UNSUPPORTED",
+      "description": "Auxiliary heating information is not supported by the vehicle."
+    }
+  ]
+}
