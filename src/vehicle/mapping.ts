@@ -2,45 +2,62 @@
  * Pure mapping from API data to the values HomeKit shows. Every function returns `undefined`
  * for values the API did not report, and callers then keep the previous characteristic value.
  */
-import type { HomeLocation } from '../config.js';
-import type { ClimateState, TargetTemperature, Vehicle } from '../api/types.js';
-import { isWithinRadius } from '../util/geo.js';
+import type { HomeLocation } from "../config.js";
+import type { ClimateState, TargetTemperature, Vehicle } from "../api/types.js";
+import { isWithinRadius } from "../util/geo.js";
 
 /** Charging states other than CHARGING; listed so unknown future values stay "unknown". */
-const NOT_CHARGING_STATES = new Set(['CONNECT_CABLE', 'CONSERVING', 'READY_FOR_CHARGING', 'DISCHARGING', 'CHARGING_INTERRUPTED']);
+const NOT_CHARGING_STATES = new Set([
+  "CONNECT_CABLE",
+  "CONSERVING",
+  "READY_FOR_CHARGING",
+  "DISCHARGING",
+  "CHARGING_INTERRUPTED",
+]);
 
 export function stateOfCharge(vehicle: Vehicle): number | undefined {
-  const fromCharging = vehicle.charging?.status?.battery?.stateOfChargeInPercent;
+  const fromCharging =
+    vehicle.charging?.status?.battery?.stateOfChargeInPercent;
   if (fromCharging !== undefined) {
     return clampPercent(fromCharging);
   }
-  const ranges = [vehicle.fuelStatus?.primaryEngineRange, vehicle.fuelStatus?.secondaryEngineRange];
-  const electric = ranges.find((range) => range?.engineType === 'ELECTRIC')?.currentSoCInPercent;
+  const ranges = [
+    vehicle.fuelStatus?.primaryEngineRange,
+    vehicle.fuelStatus?.secondaryEngineRange,
+  ];
+  const electric = ranges.find(
+    (range) => range?.engineType === "ELECTRIC",
+  )?.currentSoCInPercent;
   return electric === undefined ? undefined : clampPercent(electric);
 }
 
 export function isCharging(vehicle: Vehicle): boolean | undefined {
   const state = vehicle.charging?.status?.state;
-  if (state === 'CHARGING') {
+  if (state === "CHARGING") {
     return true;
   }
-  return state !== undefined && NOT_CHARGING_STATES.has(state) ? false : undefined;
+  return state !== undefined && NOT_CHARGING_STATES.has(state)
+    ? false
+    : undefined;
 }
 
 export function isPlugConnected(vehicle: Vehicle): boolean | undefined {
   const status = vehicle.charging?.status;
   switch (status?.plugConnectionState) {
-    case 'CONNECTED':
+    case "CONNECTED":
       return true;
-    case 'DISCONNECTED':
+    case "DISCONNECTED":
       return false;
   }
   // The API reports a disconnected plug always as CONNECT_CABLE; every other state implies a cable.
   const state = status?.state;
-  if (state === 'CONNECT_CABLE') {
+  if (state === "CONNECT_CABLE") {
     return false;
   }
-  return state === 'CHARGING' || (state !== undefined && NOT_CHARGING_STATES.has(state)) ? true : undefined;
+  return state === "CHARGING" ||
+    (state !== undefined && NOT_CHARGING_STATES.has(state))
+    ? true
+    : undefined;
 }
 
 export interface BatteryValues {
@@ -49,7 +66,10 @@ export interface BatteryValues {
   low: boolean | undefined;
 }
 
-export function batteryValues(vehicle: Vehicle, lowBatteryThreshold: number): BatteryValues {
+export function batteryValues(
+  vehicle: Vehicle,
+  lowBatteryThreshold: number,
+): BatteryValues {
   const level = stateOfCharge(vehicle);
   return {
     level,
@@ -67,14 +87,18 @@ export function normalizeChargingLimit(percent: number): number {
   return Math.min(100, Math.max(50, Math.round(percent / 10) * 10));
 }
 
-export function toCelsius(temperature: TargetTemperature | undefined): number | undefined {
+export function toCelsius(
+  temperature: TargetTemperature | undefined,
+): number | undefined {
   if (!temperature || !Number.isFinite(temperature.value)) {
     return undefined;
   }
-  return temperature.unit === 'FAHRENHEIT' ? ((temperature.value - 32) * 5) / 9 : temperature.value;
+  return temperature.unit === "FAHRENHEIT"
+    ? ((temperature.value - 32) * 5) / 9
+    : temperature.value;
 }
 
-export type ClimateMode = 'INACTIVE' | 'IDLE' | 'HEATING' | 'COOLING';
+export type ClimateMode = "INACTIVE" | "IDLE" | "HEATING" | "COOLING";
 
 export interface ClimateValues {
   active: boolean | undefined;
@@ -83,29 +107,34 @@ export interface ClimateValues {
 }
 
 const CLIMATE_MODES: Partial<Record<ClimateState, ClimateMode>> = {
-  OFF: 'INACTIVE',
-  COMPLETED: 'INACTIVE',
-  VENTILATION: 'IDLE',
-  HEATING: 'HEATING',
-  HEATING_AUXILIARY: 'HEATING',
-  PREHEATING: 'HEATING',
-  COOLING: 'COOLING',
+  OFF: "INACTIVE",
+  COMPLETED: "INACTIVE",
+  VENTILATION: "IDLE",
+  HEATING: "HEATING",
+  HEATING_AUXILIARY: "HEATING",
+  PREHEATING: "HEATING",
+  COOLING: "COOLING",
 };
 
 export function climateValues(vehicle: Vehicle): ClimateValues {
   const ac = vehicle.airConditioning;
   const mode = ac ? CLIMATE_MODES[ac.state] : undefined;
   return {
-    active: mode === undefined ? undefined : mode !== 'INACTIVE',
+    active: mode === undefined ? undefined : mode !== "INACTIVE",
     mode,
     targetCelsius: toCelsius(ac?.targetTemperature),
   };
 }
 
-const RUNNING_STATES = new Set(['PREHEATING', 'HEATING', 'HEATING_AUXILIARY', 'VENTILATION']);
+const RUNNING_STATES = new Set([
+  "PREHEATING",
+  "HEATING",
+  "HEATING_AUXILIARY",
+  "VENTILATION",
+]);
 
 function isRunning(state: ClimateState | undefined): boolean | undefined {
-  if (state === 'OFF') {
+  if (state === "OFF") {
     return false;
   }
   return state !== undefined && RUNNING_STATES.has(state) ? true : undefined;
@@ -120,25 +149,28 @@ export function isActiveVentilationOn(vehicle: Vehicle): boolean | undefined {
 }
 
 /** "At home": parked within the radius. A vehicle in motion is not at home. */
-export function isAtHome(vehicle: Vehicle, home: HomeLocation): boolean | undefined {
+export function isAtHome(
+  vehicle: Vehicle,
+  home: HomeLocation,
+): boolean | undefined {
   const position = vehicle.parkingPosition;
   if (!position) {
     return undefined;
   }
-  if (position.state === 'IN_MOTION') {
+  if (position.state === "IN_MOTION") {
     return false;
   }
-  if (position.state !== 'PARKED' || !position.gpsCoordinates) {
+  if (position.state !== "PARKED" || !position.gpsCoordinates) {
     return undefined;
   }
   return isWithinRadius(position.gpsCoordinates, home, home.radiusMeters);
 }
 
 function isOpen(value: string | undefined): boolean | undefined {
-  if (value === 'OPEN') {
+  if (value === "OPEN") {
     return true;
   }
-  return value === 'CLOSED' ? false : undefined;
+  return value === "CLOSED" ? false : undefined;
 }
 
 export interface BodyValues {
@@ -167,15 +199,15 @@ function lockState(vehicle: Vehicle): boolean | undefined {
   const overall = vehicle.status?.overall;
   // reliableLockStatus reports UNLOCKED only for MOD4 vehicles, so fall back to `locked`.
   switch (overall?.reliableLockStatus) {
-    case 'LOCKED':
+    case "LOCKED":
       return true;
-    case 'UNLOCKED':
+    case "UNLOCKED":
       return false;
   }
   switch (overall?.locked) {
-    case 'YES':
+    case "YES":
       return true;
-    case 'NO':
+    case "NO":
       return false;
   }
   return undefined;

@@ -12,10 +12,17 @@
         "lights": "OFF",
         "reliableLockStatus": "LOCKED"
       },
-      "detail": { "sunroof": "UNSUPPORTED", "trunk": "CLOSED", "bonnet": "CLOSED" },
+      "detail": {
+        "sunroof": "UNSUPPORTED",
+        "trunk": "CLOSED",
+        "bonnet": "CLOSED"
+      },
       "carCapturedTimestamp": "2026-10-31T08:00:00Z"
     },
-    "odometer": { "mileageInKm": 12345, "carCapturedTimestamp": "2026-10-31T08:00:00Z" },
+    "odometer": {
+      "mileageInKm": 12345,
+      "carCapturedTimestamp": "2026-10-31T08:00:00Z"
+    },
     "parkingPosition": {
       "state": "PARKED",
       "gpsCoordinates": { "latitude": 50.4128, "longitude": 14.9069 },
@@ -40,7 +47,10 @@
         "chargeType": "AC",
         "plugConnectionState": "CONNECTED",
         "plugLockState": "LOCKED",
-        "battery": { "remainingCruisingRangeInMeters": 245000, "stateOfChargeInPercent": 62 }
+        "battery": {
+          "remainingCruisingRangeInMeters": 245000,
+          "stateOfChargeInPercent": 62
+        }
       },
       "settings": {
         "targetStateOfChargeInPercent": 80,
@@ -62,7 +72,13 @@
     ]
   },
   "errors": [
-    { "type": "FUEL_STATUS_UNSUPPORTED", "description": "Fuel status is not supported." },
-    { "type": "AUXILIARY_HEATING_UNSUPPORTED", "description": "Auxiliary heating is not supported." }
+    {
+      "type": "FUEL_STATUS_UNSUPPORTED",
+      "description": "Fuel status is not supported."
+    },
+    {
+      "type": "AUXILIARY_HEATING_UNSUPPORTED",
+      "description": "Auxiliary heating is not supported."
+    }
   ]
 }

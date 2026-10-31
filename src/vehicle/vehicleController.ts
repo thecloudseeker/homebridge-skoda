@@ -1,8 +1,12 @@
-import type { SkodaApiClient } from '../api/client.js';
-import { BudgetExhaustedError, SkodaApiError, SkodaNetworkError } from '../api/errors.js';
-import type { Vehicle } from '../api/types.js';
-import type { Logger } from '../util/logger.js';
-import { mergeSnapshot, type VehicleSnapshot } from './snapshot.js';
+import type { SkodaApiClient } from "../api/client.js";
+import {
+  BudgetExhaustedError,
+  SkodaApiError,
+  SkodaNetworkError,
+} from "../api/errors.js";
+import type { Vehicle } from "../api/types.js";
+import type { Logger } from "../util/logger.js";
+import { mergeSnapshot, type VehicleSnapshot } from "./snapshot.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -53,7 +57,10 @@ export class VehicleController {
 
   /** True until the first successful poll, and when the last one is older than three intervals. */
   isStale(now = Date.now()): boolean {
-    return !this.current || now - this.current.fetchedAt > STALE_AFTER_INTERVALS * this.intervalMs;
+    return (
+      !this.current ||
+      now - this.current.fetchedAt > STALE_AFTER_INTERVALS * this.intervalMs
+    );
   }
 
   onUpdate(listener: Listener): () => void {
@@ -63,7 +70,7 @@ export class VehicleController {
 
   start(): void {
     this.stopped = false;
-    this.schedule(0, 'poll');
+    this.schedule(0, "poll");
   }
 
   stop(): void {
@@ -95,7 +102,7 @@ export class VehicleController {
       this.current = patched;
       this.emit();
     }
-    this.schedule(this.refreshDelayMs, 'refresh');
+    this.schedule(this.refreshDelayMs, "refresh");
   }
 
   /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day per key. */
@@ -105,29 +112,35 @@ export class VehicleController {
       return;
     }
     const lastWarned = this.keyExpiryWarnedAt.get(keyLabel);
-    if (lastWarned !== undefined && now - lastWarned < KEY_EXPIRY_WARNING_REPEAT_MS) {
+    if (
+      lastWarned !== undefined &&
+      now - lastWarned < KEY_EXPIRY_WARNING_REPEAT_MS
+    ) {
       return;
     }
     this.keyExpiryWarnedAt.set(keyLabel, now);
     const days = Math.max(0, Math.floor(remainingMs / (24 * HOUR)));
     this.options.log.warn(
       `The ${keyLabel} expires on ${expiresAt.toISOString()} (in ${days} day(s)). ` +
-        'Renew it in the MyŠkoda app under Profile > Smart Home (https://go.skoda.eu/api-keys).',
+        "Renew it in the MyŠkoda app under Profile > Smart Home (https://go.skoda.eu/api-keys).",
     );
   }
 
-  private schedule(delayMs: number, kind: 'poll' | 'refresh'): void {
+  private schedule(delayMs: number, kind: "poll" | "refresh"): void {
     if (this.stopped) {
       return;
     }
     clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(() => {
-      void this.poll(kind);
-    }, Math.max(0, delayMs));
+    this.pollTimer = setTimeout(
+      () => {
+        void this.poll(kind);
+      },
+      Math.max(0, delayMs),
+    );
     this.pollTimer.unref();
   }
 
-  private poll(kind: 'poll' | 'refresh'): Promise<void> {
+  private poll(kind: "poll" | "refresh"): Promise<void> {
     // A command may schedule a refresh while a poll is running; the running poll is enough.
     this.inFlight ??= this.fetch(kind).finally(() => {
       this.inFlight = undefined;
@@ -135,17 +148,19 @@ export class VehicleController {
     return this.inFlight;
   }
 
-  private async fetch(kind: 'poll' | 'refresh'): Promise<void> {
+  private async fetch(kind: "poll" | "refresh"): Promise<void> {
     try {
       const response = await this.options.pollClient.getVehicle(kind);
       this.current = mergeSnapshot(this.current, response, Date.now());
       if (this.failures > 0 || this.lastErrorKey) {
-        this.options.log.info('Connection to the MyŠkoda API restored');
+        this.options.log.info("Connection to the MyŠkoda API restored");
       }
       this.failures = 0;
       this.lastErrorKey = undefined;
-      this.options.log.debug(`Vehicle data updated (${response.errors?.length ?? 0} partial-data notice(s))`);
-      this.schedule(this.intervalMs, 'poll');
+      this.options.log.debug(
+        `Vehicle data updated (${response.errors?.length ?? 0} partial-data notice(s))`,
+      );
+      this.schedule(this.intervalMs, "poll");
     } catch (error) {
       this.handlePollError(error, kind);
     }
@@ -153,12 +168,14 @@ export class VehicleController {
     this.emit();
   }
 
-  private handlePollError(error: unknown, kind: 'poll' | 'refresh'): void {
+  private handlePollError(error: unknown, kind: "poll" | "refresh"): void {
     const { log } = this.options;
     const now = Date.now();
 
     if (error instanceof BudgetExhaustedError) {
-      log.debug(`Request budget exhausted, next ${kind} at ${new Date(error.availableAt).toISOString()}`);
+      log.debug(
+        `Request budget exhausted, next ${kind} at ${new Date(error.availableAt).toISOString()}`,
+      );
       this.schedule(error.availableAt - now + 1000, kind);
       return;
     }
@@ -167,29 +184,39 @@ export class VehicleController {
 
     if (error instanceof SkodaApiError) {
       if (error.isAuthError || error.status === 404) {
-        this.logOnce(`${error.status}:${error.problemType ?? ''}`, () => {
+        this.logOnce(`${error.status}:${error.problemType ?? ""}`, () => {
           log.error(`${describeConfigError(error)} Retrying every hour.`);
         });
-        this.schedule(CONFIG_ERROR_RETRY_MS, 'poll');
+        this.schedule(CONFIG_ERROR_RETRY_MS, "poll");
         return;
       }
       if (error.status === 429 || error.status === 503) {
         const retryMs = (error.retryAfterSeconds ?? 0) * 1000;
-        log.warn(`Vehicle update deferred (${error.message}); retrying in ${formatDelay(Math.max(retryMs, this.backoffMs()))}`);
-        this.schedule(Math.max(retryMs, this.backoffMs()), 'poll');
+        log.warn(
+          `Vehicle update deferred (${error.message}); retrying in ${formatDelay(Math.max(retryMs, this.backoffMs()))}`,
+        );
+        this.schedule(Math.max(retryMs, this.backoffMs()), "poll");
         return;
       }
       if (error.status === 400) {
-        log.error(`The API rejected the request as invalid (${error.message}). Please report this as a bug.`);
+        log.error(
+          `The API rejected the request as invalid (${error.message}). Please report this as a bug.`,
+        );
       } else {
-        log.warn(`Vehicle update failed (${error.message}); retrying in ${formatDelay(this.backoffMs())}`);
+        log.warn(
+          `Vehicle update failed (${error.message}); retrying in ${formatDelay(this.backoffMs())}`,
+        );
       }
     } else if (error instanceof SkodaNetworkError) {
-      log.warn(`Vehicle update failed: ${error.message}; retrying in ${formatDelay(this.backoffMs())}`);
+      log.warn(
+        `Vehicle update failed: ${error.message}; retrying in ${formatDelay(this.backoffMs())}`,
+      );
     } else {
-      log.error(`Unexpected error while updating the vehicle: ${error instanceof Error ? error.message : String(error)}`);
+      log.error(
+        `Unexpected error while updating the vehicle: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-    this.schedule(this.backoffMs(), 'poll');
+    this.schedule(this.backoffMs(), "poll");
   }
 
   /** Exponential backoff starting at the polling interval, capped at 30 minutes (or the interval if longer). */
@@ -211,7 +238,8 @@ export class VehicleController {
     if (this.stopped || !this.current || this.isStale()) {
       return;
     }
-    const staleAt = this.current.fetchedAt + STALE_AFTER_INTERVALS * this.intervalMs + 1;
+    const staleAt =
+      this.current.fetchedAt + STALE_AFTER_INTERVALS * this.intervalMs + 1;
     this.staleTimer = setTimeout(() => {
       this.emit();
     }, staleAt - Date.now());
@@ -223,7 +251,9 @@ export class VehicleController {
       try {
         listener(this.current);
       } catch (error) {
-        this.options.log.error(`Failed to update HomeKit: ${error instanceof Error ? error.message : String(error)}`);
+        this.options.log.error(
+          `Failed to update HomeKit: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -231,19 +261,19 @@ export class VehicleController {
 
 function describeConfigError(error: SkodaApiError): string {
   switch (error.problemType) {
-    case 'api-key-expired':
-      return 'The API key has expired. Create or update a key in the MyŠkoda app and update the plugin config.';
-    case 'api-key-not-authorized':
-      return 'The API key does not cover this vehicle or operation. Check the key and the VIN in the plugin config.';
-    case 'operation-not-authorized':
-      return 'The vehicle refused the request for the user the API key belongs to.';
+    case "api-key-expired":
+      return "The API key has expired. Create or update a key in the MyŠkoda app and update the plugin config.";
+    case "api-key-not-authorized":
+      return "The API key does not cover this vehicle or operation. Check the key and the VIN in the plugin config.";
+    case "operation-not-authorized":
+      return "The vehicle refused the request for the user the API key belongs to.";
   }
   switch (error.status) {
     case 401:
       // Observed for unknown or deleted keys: `about:blank` with "Missing or invalid API key."
-      return 'The API key is invalid or no longer exists. Check the key in the plugin config or create a new one in the MyŠkoda app.';
+      return "The API key is invalid or no longer exists. Check the key in the plugin config or create a new one in the MyŠkoda app.";
     case 404:
-      return 'No vehicle found for the configured VIN.';
+      return "No vehicle found for the configured VIN.";
   }
   return `Access denied (${error.message}).`;
 }
@@ -254,24 +284,28 @@ export function describeCommandError(error: unknown): string {
   }
   if (error instanceof SkodaApiError) {
     switch (error.problemType) {
-      case 'operation-not-supported':
-        return 'the vehicle does not support this operation';
-      case 'operation-disabled':
-        return 'this function is currently disabled for the vehicle';
-      case 'vehicle-not-accepting-requests':
-        return 'the vehicle declined the request, try again later';
-      case 'rate-limit-exceeded':
-        return 'rate limit exceeded';
-      case 'api-key-expired':
-      case 'api-key-not-authorized':
-      case 'operation-not-authorized':
+      case "operation-not-supported":
+        return "the vehicle does not support this operation";
+      case "operation-disabled":
+        return "this function is currently disabled for the vehicle";
+      case "vehicle-not-accepting-requests":
+        return "the vehicle declined the request, try again later";
+      case "rate-limit-exceeded":
+        return "rate limit exceeded";
+      case "api-key-expired":
+      case "api-key-not-authorized":
+      case "operation-not-authorized":
         return describeConfigError(error);
     }
-    return error.isAuthError || error.status === 404 ? describeConfigError(error) : error.message;
+    return error.isAuthError || error.status === 404
+      ? describeConfigError(error)
+      : error.message;
   }
   return error instanceof Error ? error.message : String(error);
 }
 
 function formatDelay(ms: number): string {
-  return ms >= MINUTE ? `${Math.round(ms / MINUTE)} min` : `${Math.round(ms / 1000)} s`;
+  return ms >= MINUTE
+    ? `${Math.round(ms / MINUTE)} min`
+    : `${Math.round(ms / 1000)} s`;
 }

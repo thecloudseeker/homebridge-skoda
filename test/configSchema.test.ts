@@ -1,7 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { DEFAULT_FEATURES, MIN_POLLING_INTERVAL_MINUTES } from '../src/config.js';
-import { PLATFORM_NAME } from '../src/settings.js';
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import {
+  DEFAULT_FEATURES,
+  MIN_POLLING_INTERVAL_MINUTES,
+} from "../src/config.js";
+import { PLATFORM_NAME } from "../src/settings.js";
 
 interface Schema {
   pluginAlias: string;
@@ -9,7 +12,13 @@ interface Schema {
     properties: {
       vehicles: {
         items: {
-          properties: Record<string, { minimum?: number; properties?: Record<string, { default?: unknown }> }>;
+          properties: Record<
+            string,
+            {
+              minimum?: number;
+              properties?: Record<string, { default?: unknown }>;
+            }
+          >;
         };
       };
     };
@@ -17,29 +26,35 @@ interface Schema {
   layout: unknown;
 }
 
-const schema = JSON.parse(readFileSync(new URL('../config.schema.json', import.meta.url), 'utf8')) as Schema;
+const schema = JSON.parse(
+  readFileSync(new URL("../config.schema.json", import.meta.url), "utf8"),
+) as Schema;
 const vehicle = schema.schema.properties.vehicles.items.properties;
 
-describe('config.schema.json', () => {
-  it('uses the platform name as alias', () => {
+describe("config.schema.json", () => {
+  it("uses the platform name as alias", () => {
     expect(schema.pluginAlias).toBe(PLATFORM_NAME);
   });
 
-  it('lists every feature toggle with the code default', () => {
+  it("lists every feature toggle with the code default", () => {
     const features = vehicle.features?.properties ?? {};
-    expect(Object.keys(features).sort()).toEqual(Object.keys(DEFAULT_FEATURES).sort());
+    expect(Object.keys(features).sort()).toEqual(
+      Object.keys(DEFAULT_FEATURES).sort(),
+    );
     for (const [key, value] of Object.entries(DEFAULT_FEATURES)) {
       expect(features[key]?.default, key).toBe(value);
     }
   });
 
-  it('enforces the rate-limit minimum for the polling interval', () => {
-    expect(vehicle.pollingIntervalMinutes?.minimum).toBe(MIN_POLLING_INTERVAL_MINUTES);
+  it("enforces the rate-limit minimum for the polling interval", () => {
+    expect(vehicle.pollingIntervalMinutes?.minimum).toBe(
+      MIN_POLLING_INTERVAL_MINUTES,
+    );
   });
 
-  it('renders all secrets as password fields', () => {
+  it("renders all secrets as password fields", () => {
     const layout = JSON.stringify(schema.layout);
-    for (const key of ['token', 'commandToken', 'spin']) {
+    for (const key of ["token", "commandToken", "spin"]) {
       expect(layout).toContain(`{"key":"vehicles[].${key}","type":"password"}`);
     }
   });

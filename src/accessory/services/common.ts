@@ -1,19 +1,25 @@
-import type { API, CharacteristicValue, PlatformAccessory, Service, WithUUID } from 'homebridge';
-import type { SkodaApiClient } from '../../api/client.js';
-import type { Vehicle } from '../../api/types.js';
-import type { FeatureToggles, VehicleSettings } from '../../config.js';
-import type { Logger } from '../../util/logger.js';
-import type { VehicleSnapshot } from '../../vehicle/snapshot.js';
-import type { VehicleController } from '../../vehicle/vehicleController.js';
+import type {
+  API,
+  CharacteristicValue,
+  PlatformAccessory,
+  Service,
+  WithUUID,
+} from "homebridge";
+import type { SkodaApiClient } from "../../api/client.js";
+import type { Vehicle } from "../../api/types.js";
+import type { FeatureToggles, VehicleSettings } from "../../config.js";
+import type { Logger } from "../../util/logger.js";
+import type { VehicleSnapshot } from "../../vehicle/snapshot.js";
+import type { VehicleController } from "../../vehicle/vehicleController.js";
 
-export type HAP = API['hap'];
+export type HAP = API["hap"];
 export type ServiceType = WithUUID<typeof Service>;
-type HapStatus = ConstructorParameters<HAP['HapStatusError']>[0];
+type HapStatus = ConstructorParameters<HAP["HapStatusError"]>[0];
 
 /** `HAPStatus.SERVICE_COMMUNICATION_FAILURE` ("No Response"); the enum is const and type-only here. */
 // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- ambient const enum cannot be referenced
 const SERVICE_COMMUNICATION_FAILURE = -70402 as HapStatus;
-type CharacteristicType = Parameters<Service['updateCharacteristic']>[0];
+type CharacteristicType = Parameters<Service["updateCharacteristic"]>[0];
 
 export interface BindingContext {
   hap: HAP;
@@ -38,7 +44,10 @@ export abstract class ServiceBinding {
 
   /** Whether the service exists on the (possibly cached) accessory. */
   exists(): boolean {
-    return this.ctx.accessory.getServiceById(this.serviceType, this.subtype) !== undefined;
+    return (
+      this.ctx.accessory.getServiceById(this.serviceType, this.subtype) !==
+      undefined
+    );
   }
 
   /** Creates the service if needed and registers handlers once. */
@@ -49,9 +58,16 @@ export abstract class ServiceBinding {
     const { accessory, hap } = this.ctx;
     let service = accessory.getServiceById(this.serviceType, this.subtype);
     if (!service) {
-      service = accessory.addService(this.serviceType, this.displayName, this.subtype);
+      service = accessory.addService(
+        this.serviceType,
+        this.displayName,
+        this.subtype,
+      );
       service.addOptionalCharacteristic(hap.Characteristic.ConfiguredName);
-      service.setCharacteristic(hap.Characteristic.ConfiguredName, this.displayName);
+      service.setCharacteristic(
+        hap.Characteristic.ConfiguredName,
+        this.displayName,
+      );
       this.ctx.log.info(`Added ${this.displayName}`);
     }
     this.service = service;
@@ -59,7 +75,10 @@ export abstract class ServiceBinding {
   }
 
   detach(): void {
-    const service = this.ctx.accessory.getServiceById(this.serviceType, this.subtype);
+    const service = this.ctx.accessory.getServiceById(
+      this.serviceType,
+      this.subtype,
+    );
     if (service) {
       this.ctx.accessory.removeService(service);
       this.ctx.log.info(`Removed ${this.displayName}`);
@@ -76,7 +95,10 @@ export abstract class ServiceBinding {
     }
     if (this.hasStatusFault) {
       const { StatusFault } = this.ctx.hap.Characteristic;
-      this.service.updateCharacteristic(StatusFault, stale ? StatusFault.GENERAL_FAULT : StatusFault.NO_FAULT);
+      this.service.updateCharacteristic(
+        StatusFault,
+        stale ? StatusFault.GENERAL_FAULT : StatusFault.NO_FAULT,
+      );
     }
   }
 
@@ -92,7 +114,10 @@ export abstract class ServiceBinding {
   protected abstract render(service: Service, vehicle: Vehicle): void;
 
   /** Updates a characteristic only when the API reported a value. */
-  protected set(characteristic: CharacteristicType, value: CharacteristicValue | undefined): void {
+  protected set(
+    characteristic: CharacteristicType,
+    value: CharacteristicValue | undefined,
+  ): void {
     if (value !== undefined) {
       this.service?.updateCharacteristic(characteristic, value);
     }
@@ -127,7 +152,10 @@ export abstract class ServiceBinding {
 }
 
 /** Delays an action until the value has not changed for `delayMs` (sliders send many updates). */
-export function debounce<T>(delayMs: number, action: (value: T) => void): (value: T) => void {
+export function debounce<T>(
+  delayMs: number,
+  action: (value: T) => void,
+): (value: T) => void {
   let timer: NodeJS.Timeout | undefined;
   return (value: T) => {
     clearTimeout(timer);
@@ -139,7 +167,10 @@ export function debounce<T>(delayMs: number, action: (value: T) => void): (value
 }
 
 /** Patches the charging part of the cached vehicle, creating it if needed. */
-export function patchChargingStatus(vehicle: Vehicle, patch: NonNullable<NonNullable<Vehicle['charging']>['status']>): void {
+export function patchChargingStatus(
+  vehicle: Vehicle,
+  patch: NonNullable<NonNullable<Vehicle["charging"]>["status"]>,
+): void {
   vehicle.charging ??= { isVehicleInSavedLocation: false };
   vehicle.charging.status = { ...vehicle.charging.status, ...patch };
 }

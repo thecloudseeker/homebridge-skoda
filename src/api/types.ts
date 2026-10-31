@@ -9,7 +9,7 @@
 
 type Open<T extends string> = T | (string & {});
 
-export type TemperatureUnit = Open<'CELSIUS' | 'FAHRENHEIT'>;
+export type TemperatureUnit = Open<"CELSIUS" | "FAHRENHEIT">;
 
 export interface TargetTemperature {
   value: number;
@@ -17,15 +17,17 @@ export interface TargetTemperature {
 }
 
 export interface OverallVehicleStatus {
-  doorsLocked: Open<'YES' | 'NO' | 'OPENED' | 'TRUNK_OPENED' | 'UNKNOWN'>;
-  locked: Open<'YES' | 'NO' | 'UNKNOWN'>;
-  doors: Open<'OPEN' | 'CLOSED' | 'UNKNOWN'>;
-  windows: Open<'OPEN' | 'CLOSED' | 'UNKNOWN' | 'UNSUPPORTED'>;
-  lights: Open<'ON' | 'OFF' | 'UNKNOWN'>;
-  reliableLockStatus?: Open<'LOCKED' | 'UNLOCKED' | 'UNKNOWN'>;
+  doorsLocked: Open<"YES" | "NO" | "OPENED" | "TRUNK_OPENED" | "UNKNOWN">;
+  locked: Open<"YES" | "NO" | "UNKNOWN">;
+  doors: Open<"OPEN" | "CLOSED" | "UNKNOWN">;
+  windows: Open<"OPEN" | "CLOSED" | "UNKNOWN" | "UNSUPPORTED">;
+  lights: Open<"ON" | "OFF" | "UNKNOWN">;
+  reliableLockStatus?: Open<"LOCKED" | "UNLOCKED" | "UNKNOWN">;
 }
 
-export type OpenClosedState = Open<'OPEN' | 'CLOSED' | 'UNKNOWN' | 'UNSUPPORTED'>;
+export type OpenClosedState = Open<
+  "OPEN" | "CLOSED" | "UNKNOWN" | "UNSUPPORTED"
+>;
 
 export interface VehicleStatusDetail {
   sunroof: OpenClosedState;
@@ -40,14 +42,16 @@ export interface VehicleStatus {
 }
 
 export interface EngineRange {
-  engineType?: Open<'ELECTRIC' | 'GASOLINE' | 'DIESEL' | 'CNG' | 'LPG' | 'UNKNOWN'>;
+  engineType?: Open<
+    "ELECTRIC" | "GASOLINE" | "DIESEL" | "CNG" | "LPG" | "UNKNOWN"
+  >;
   currentSoCInPercent?: number;
   currentFuelLevelInPercent?: number;
   remainingRangeInKm?: number;
 }
 
 export interface FuelStatus {
-  carType?: Open<'HYBRID' | 'GASOLINE' | 'DIESEL' | 'CNG' | 'LPG' | 'UNKNOWN'>;
+  carType?: Open<"HYBRID" | "GASOLINE" | "DIESEL" | "CNG" | "LPG" | "UNKNOWN">;
   adBlueRange?: number;
   totalRangeInKm?: number;
   primaryEngineRange?: EngineRange;
@@ -61,27 +65,27 @@ export interface Odometer {
 }
 
 export interface ParkingPosition {
-  state: Open<'IN_MOTION' | 'PARKED'>;
+  state: Open<"IN_MOTION" | "PARKED">;
   gpsCoordinates?: { latitude: number; longitude: number };
   formattedAddress?: string;
 }
 
 export type ClimateState = Open<
-  | 'OFF'
-  | 'COOLING'
-  | 'HEATING'
-  | 'HEATING_AUXILIARY'
-  | 'VENTILATION'
-  | 'COMPLETED'
-  | 'PREHEATING'
-  | 'UNKNOWN'
-  | 'UNSUPPORTED'
+  | "OFF"
+  | "COOLING"
+  | "HEATING"
+  | "HEATING_AUXILIARY"
+  | "VENTILATION"
+  | "COMPLETED"
+  | "PREHEATING"
+  | "UNKNOWN"
+  | "UNSUPPORTED"
 >;
 
 export interface WindowHeating {
   enabled?: boolean;
-  front?: Open<'ON' | 'OFF' | 'UNKNOWN' | 'UNSUPPORTED'>;
-  rear?: Open<'ON' | 'OFF' | 'UNKNOWN' | 'UNSUPPORTED'>;
+  front?: Open<"ON" | "OFF" | "UNKNOWN" | "UNSUPPORTED">;
+  rear?: Open<"ON" | "OFF" | "UNKNOWN" | "UNSUPPORTED">;
 }
 
 export interface AirConditioning {
@@ -96,7 +100,7 @@ export interface AirConditioning {
 
 export interface AuxiliaryHeating {
   state: ClimateState;
-  startMode?: Open<'HEATING' | 'VENTILATION'>;
+  startMode?: Open<"HEATING" | "VENTILATION">;
   durationInSeconds?: number;
   targetTemperature?: TargetTemperature;
   estimatedReachOfTargetTemperatureAt?: string;
@@ -110,7 +114,12 @@ export interface ActiveVentilation {
 }
 
 export type ChargingState = Open<
-  'CONNECT_CABLE' | 'CHARGING' | 'CONSERVING' | 'READY_FOR_CHARGING' | 'DISCHARGING' | 'CHARGING_INTERRUPTED'
+  | "CONNECT_CABLE"
+  | "CHARGING"
+  | "CONSERVING"
+  | "READY_FOR_CHARGING"
+  | "DISCHARGING"
+  | "CHARGING_INTERRUPTED"
 >;
 
 export interface BatteryStatus {
@@ -124,9 +133,9 @@ export interface ChargingStatus {
   remainingTimeToFullyChargedInMinutes?: number;
   fullyChargedAt?: string;
   state?: ChargingState;
-  chargeType?: Open<'AC' | 'DC' | 'OFF'>;
-  plugConnectionState?: Open<'CONNECTED' | 'DISCONNECTED'>;
-  plugLockState?: Open<'LOCKED' | 'UNLOCKED'>;
+  chargeType?: Open<"AC" | "DC" | "OFF">;
+  plugConnectionState?: Open<"CONNECTED" | "DISCONNECTED">;
+  plugLockState?: Open<"LOCKED" | "UNLOCKED">;
   battery?: BatteryStatus;
 }
 
@@ -149,17 +158,17 @@ export interface Charging {
 }
 
 export type OperationName = Open<
-  | 'startCharging'
-  | 'stopCharging'
-  | 'setChargingLimit'
-  | 'setChargeMode'
-  | 'updateChargingProfile'
-  | 'startAirConditioning'
-  | 'stopAirConditioning'
-  | 'startAuxiliaryHeating'
-  | 'stopAuxiliaryHeating'
-  | 'startActiveVentilation'
-  | 'stopActiveVentilation'
+  | "startCharging"
+  | "stopCharging"
+  | "setChargingLimit"
+  | "setChargeMode"
+  | "updateChargingProfile"
+  | "startAirConditioning"
+  | "stopAirConditioning"
+  | "startAuxiliaryHeating"
+  | "stopAuxiliaryHeating"
+  | "startActiveVentilation"
+  | "stopActiveVentilation"
 >;
 
 export interface VehicleOperation {
@@ -197,16 +206,16 @@ export interface VehicleResponse {
 
 /** Values of the `include` query parameter of `GET /api/v1/vehicles/{vin}`. */
 export const VEHICLE_PARTS = [
-  'info',
-  'status',
-  'fuelStatus',
-  'odometer',
-  'parkingPosition',
-  'airConditioning',
-  'auxiliaryHeating',
-  'activeVentilation',
-  'charging',
-  'operations',
+  "info",
+  "status",
+  "fuelStatus",
+  "odometer",
+  "parkingPosition",
+  "airConditioning",
+  "auxiliaryHeating",
+  "activeVentilation",
+  "charging",
+  "operations",
 ] as const;
 
 export type VehiclePart = (typeof VEHICLE_PARTS)[number];
@@ -220,7 +229,7 @@ export interface StartAuxiliaryHeatingConfiguration {
   spin: string;
   targetTemperature?: TargetTemperature;
   durationInSeconds?: number;
-  startMode?: 'HEATING' | 'VENTILATION';
+  startMode?: "HEATING" | "VENTILATION";
 }
 
 /** RFC 9457 problem details. */

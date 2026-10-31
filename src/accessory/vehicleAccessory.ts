@@ -1,11 +1,18 @@
-import { maskVin } from '../util/redact.js';
-import { PLUGIN_VERSION } from '../settings.js';
-import { featureSupport, type VehicleSnapshot } from '../vehicle/snapshot.js';
-import { BatteryBinding, StateOfChargeSensorBinding } from './services/battery.js';
-import { PresenceBinding, contactBindings } from './services/body.js';
-import { ChargingBinding, ChargingLimitBinding } from './services/charging.js';
-import { ActiveVentilationBinding, AuxiliaryHeatingBinding, ClimateBinding } from './services/climate.js';
-import type { BindingContext, ServiceBinding } from './services/common.js';
+import { maskVin } from "../util/redact.js";
+import { PLUGIN_VERSION } from "../settings.js";
+import { featureSupport, type VehicleSnapshot } from "../vehicle/snapshot.js";
+import {
+  BatteryBinding,
+  StateOfChargeSensorBinding,
+} from "./services/battery.js";
+import { PresenceBinding, contactBindings } from "./services/body.js";
+import { ChargingBinding, ChargingLimitBinding } from "./services/charging.js";
+import {
+  ActiveVentilationBinding,
+  AuxiliaryHeatingBinding,
+  ClimateBinding,
+} from "./services/climate.js";
+import type { BindingContext, ServiceBinding } from "./services/common.js";
 
 /**
  * One HomeKit accessory per vehicle. Services are created only for features that are enabled in
@@ -32,8 +39,8 @@ export class VehicleAccessory {
     const { Characteristic, Service } = ctx.hap;
     ctx.accessory
       .getService(Service.AccessoryInformation)
-      ?.setCharacteristic(Characteristic.Manufacturer, 'Škoda')
-      .setCharacteristic(Characteristic.Model, 'MyŠkoda vehicle')
+      ?.setCharacteristic(Characteristic.Manufacturer, "Škoda")
+      .setCharacteristic(Characteristic.Model, "MyŠkoda vehicle")
       .setCharacteristic(Characteristic.SerialNumber, maskVin(ctx.settings.vin))
       .setCharacteristic(Characteristic.FirmwareRevision, PLUGIN_VERSION);
 
@@ -47,7 +54,9 @@ export class VehicleAccessory {
     const stale = this.ctx.controller.isStale();
     for (const binding of this.bindings) {
       const enabled = this.ctx.settings.features[binding.feature];
-      const supported = snapshot ? featureSupport(snapshot, binding.feature) : undefined;
+      const supported = snapshot
+        ? featureSupport(snapshot, binding.feature)
+        : undefined;
       if (!enabled || supported === false) {
         binding.detach();
         continue;

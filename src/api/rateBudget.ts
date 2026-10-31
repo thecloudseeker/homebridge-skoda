@@ -15,7 +15,7 @@ export const DEFAULT_COMMAND_RESERVE = 4;
 export const RATE_WINDOW_MS = 60 * 60 * 1000;
 
 /** `poll` must respect the command reserve; `command` and `refresh` may use it. */
-export type RequestKind = 'poll' | 'refresh' | 'command';
+export type RequestKind = "poll" | "refresh" | "command";
 
 export interface RateLimitHeaders {
   limit?: number;
@@ -74,7 +74,7 @@ export class RateBudget {
   }
 
   canSpend(kind: RequestKind): boolean {
-    return this.remaining() > (kind === 'poll' ? this.reserve : 0);
+    return this.remaining() > (kind === "poll" ? this.reserve : 0);
   }
 
   /** Records a request that is about to be sent. */
@@ -97,7 +97,10 @@ export class RateBudget {
     }
     if (headers.remaining !== undefined) {
       const resetMs = (headers.resetSeconds ?? this.windowMs / 1000) * 1000;
-      this.server = { remaining: Math.max(0, headers.remaining), resetAt: this.now() + resetMs };
+      this.server = {
+        remaining: Math.max(0, headers.remaining),
+        resetAt: this.now() + resetMs,
+      };
     }
   }
 
@@ -112,7 +115,7 @@ export class RateBudget {
     if (this.canSpend(kind)) {
       return now;
     }
-    const needed = kind === 'poll' ? this.reserve + 1 : 1;
+    const needed = kind === "poll" ? this.reserve + 1 : 1;
     const candidates: number[] = [this.blockedUntil];
 
     // Local window: the oldest requests drop out one by one.
@@ -125,7 +128,11 @@ export class RateBudget {
       }
     }
     // Server window: the quota replenishes at the reset time.
-    if (this.server && now < this.server.resetAt && this.server.remaining < needed) {
+    if (
+      this.server &&
+      now < this.server.resetAt &&
+      this.server.remaining < needed
+    ) {
       candidates.push(this.server.resetAt);
     }
     return Math.max(now, ...candidates);

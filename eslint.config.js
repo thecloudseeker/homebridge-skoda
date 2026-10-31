@@ -1,8 +1,9 @@
-import js from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**'] },
+  { ignores: ["dist/**", "node_modules/**"] },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   {
@@ -13,19 +14,23 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
-      'no-console': 'error',
+      "@typescript-eslint/restrict-template-expressions": [
+        "error",
+        { allowNumber: true },
+      ],
+      "no-console": "error",
     },
   },
   {
-    files: ['test/**/*.ts'],
+    files: ["test/**/*.ts"],
     rules: {
-      '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/unbound-method': 'off',
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/unbound-method": "off",
     },
   },
   {
-    files: ['eslint.config.js'],
+    files: ["eslint.config.js"],
     ...tseslint.configs.disableTypeChecked,
   },
+  eslintPluginPrettierRecommended,
 );

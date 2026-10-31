@@ -16,12 +16,23 @@
     "fuelStatus": {
       "carType": "DIESEL",
       "totalRangeInKm": 780,
-      "primaryEngineRange": { "engineType": "DIESEL", "currentFuelLevelInPercent": 65, "remainingRangeInKm": 780 }
+      "primaryEngineRange": {
+        "engineType": "DIESEL",
+        "currentFuelLevelInPercent": 65,
+        "remainingRangeInKm": 780
+      }
     },
     "odometer": { "mileageInKm": 54321 },
     "parkingPosition": { "state": "IN_MOTION" },
-    "auxiliaryHeating": { "state": "OFF", "startMode": "HEATING", "durationInSeconds": 1800 },
-    "operations": [{ "name": "startAuxiliaryHeating" }, { "name": "stopAuxiliaryHeating" }]
+    "auxiliaryHeating": {
+      "state": "OFF",
+      "startMode": "HEATING",
+      "durationInSeconds": 1800
+    },
+    "operations": [
+      { "name": "startAuxiliaryHeating" },
+      { "name": "stopAuxiliaryHeating" }
+    ]
   },
   "errors": [
     { "type": "CHARGING_UNSUPPORTED" },

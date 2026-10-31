@@ -19,26 +19,26 @@ air conditioning, auxiliary heating, "at home" detection, doors, windows and loc
 Each vehicle becomes one HomeKit accessory. A service is only created if it is enabled in the
 config **and** the vehicle reports that it supports it.
 
-| HomeKit service | Shows | Controls | Default |
-| --- | --- | --- | --- |
-| Battery | State of charge, charging state, low battery below a threshold | – | on |
-| Humidity sensor "State of Charge" | State of charge in %, so you can build automations on it | – | off |
-| Outlet "Charging" | *On* = charging, *Outlet In Use* = cable plugged in | Start / stop charging | on |
-| Lightbulb "Charge Limit" | Brightness = charging limit (50–100 % in steps of 10) | Set charging limit | on |
-| Heater Cooler "Climate" | Active, heating / cooling, target temperature | Start / stop air conditioning, set temperature | on |
-| Switch "Auxiliary Heating" | Running | Start / stop (needs your S-PIN) | on |
-| Switch "Ventilation" | Running, as far as the vehicle reports it (see notes) | Start / stop active ventilation | off |
-| Occupancy sensor "Home" | Parked within a radius around your home | – | on |
-| Contact sensors "Doors", "Windows", "Trunk", "Bonnet", "Sunroof" | Open / closed | – | on |
-| Contact sensor "Locked" | Closed = locked, open = unlocked | – (the API cannot lock or unlock) | on |
+| HomeKit service                                                  | Shows                                                          | Controls                                       | Default |
+| ---------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- | ------- |
+| Battery                                                          | State of charge, charging state, low battery below a threshold | –                                              | on      |
+| Humidity sensor "State of Charge"                                | State of charge in %, so you can build automations on it       | –                                              | off     |
+| Outlet "Charging"                                                | _On_ = charging, _Outlet In Use_ = cable plugged in            | Start / stop charging                          | on      |
+| Lightbulb "Charge Limit"                                         | Brightness = charging limit (50–100 % in steps of 10)          | Set charging limit                             | on      |
+| Heater Cooler "Climate"                                          | Active, heating / cooling, target temperature                  | Start / stop air conditioning, set temperature | on      |
+| Switch "Auxiliary Heating"                                       | Running                                                        | Start / stop (needs your S-PIN)                | on      |
+| Switch "Ventilation"                                             | Running, as far as the vehicle reports it (see notes)          | Start / stop active ventilation                | off     |
+| Occupancy sensor "Home"                                          | Parked within a radius around your home                        | –                                              | on      |
+| Contact sensors "Doors", "Windows", "Trunk", "Bonnet", "Sunroof" | Open / closed                                                  | –                                              | on      |
+| Contact sensor "Locked"                                          | Closed = locked, open = unlocked                               | – (the API cannot lock or unlock)              | on      |
 
 What the API does **not** offer, and therefore this plugin neither: locking and unlocking, honking
 and flashing, waking the vehicle up, cabin temperature, and push updates.
 
 ### HomeKit notes
 
-- **Climate.** The API has no cabin temperature reading, so *Current Temperature* mirrors the
-  target temperature. The API has no heat or cool mode either, so the mode is fixed to *Auto* and
+- **Climate.** The API has no cabin temperature reading, so _Current Temperature_ mirrors the
+  target temperature. The API has no heat or cool mode either, so the mode is fixed to _Auto_ and
   both thresholds always hold the same value. Temperatures range from 16 to 29.5 °C in steps of
   0.5 °C. Changing the temperature while the air conditioning is running restarts it (stop,
   10 s pause, start), which costs two requests. While it is off, the new temperature is used on
@@ -47,15 +47,15 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
   brightness of a lightbulb. It cannot be switched off. Values snap to 50–100 % in steps of 10,
   as the vehicles require.
 - **Ventilation.** A ventilation started through the Public API runs, but Škoda does not report it
-  as running: in a live test the API said *off* during the whole 10-minute run, and the MyŠkoda
+  as running: in a live test the API said _off_ during the whole 10-minute run, and the MyŠkoda
   app showed it the same way. A ventilation started in the app is reported correctly. The switch
-  therefore always shows the reported state: after you switch it on in HomeKit it returns to *off*
-  once the vehicle has accepted the start (see the log), and it shows *on* when the ventilation
+  therefore always shows the reported state: after you switch it on in HomeKit it returns to _off_
+  once the vehicle has accepted the start (see the log), and it shows _on_ when the ventilation
   was started in the app.
 - **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
   lock or unlock. A lock tile in the Home app would suggest otherwise.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors
-  show a fault (*StatusFault*). Battery, outlet, switches and the heater cooler have no fault
+  show a fault (_StatusFault_). Battery, outlet, switches and the heater cooler have no fault
   indicator in HomeKit.
 
 ## Requirements
@@ -85,7 +85,7 @@ days before a key expires. Once it has expired, the plugin logs an error and ret
 (failed authentication does not count against the rate limit). Renew the key in the app and
 update the config.
 
-You may configure a second key for commands only (*Command API key*), for example to keep
+You may configure a second key for commands only (_Command API key_), for example to keep
 permissions apart. **A second key does not give you more requests**: the rate limit applies per
 vehicle, and both keys share it.
 
@@ -109,22 +109,22 @@ The easiest way is the Homebridge UI. In `config.json` it looks like this:
 }
 ```
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `name` | `Škoda <last 4 of VIN>` | Accessory name in HomeKit |
-| `vin` | – | Vehicle identification number (required) |
-| `token` | – | API key (required) |
-| `commandToken` | – | Separate API key for commands |
-| `spin` | – | S-PIN, only needed for the auxiliary heating |
-| `home.lat`, `home.lon` | – | Home coordinates for the "Home" sensor |
-| `home.radiusMeters` | `150` | Radius around home, at least 10 m |
-| `pollingIntervalMinutes` | `5` | Polling interval, at least 4 (see below) |
-| `commandRefreshDelaySeconds` | `90` | Delay before the refresh after a command (15–600) |
-| `lowBatteryThreshold` | `20` | Low battery below this state of charge (%) |
-| `climateTemperature` | `21` | Cabin temperature (°C) until the vehicle reports one |
-| `airConditioningWithoutExternalPower` | – | Allow air conditioning on battery; unset keeps the vehicle setting |
-| `auxiliaryHeatingDurationMinutes` | – | Auxiliary heating run time; unset keeps the vehicle setting |
-| `features.*` | see table above | `battery`, `stateOfChargeSensor`, `charging`, `chargingLimit`, `climate`, `auxiliaryHeating`, `activeVentilation`, `presence`, `doors`, `windows`, `trunk`, `bonnet`, `sunroof`, `lock` |
+| Option                                | Default                 | Description                                                                                                                                                                             |
+| ------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                | `Škoda <last 4 of VIN>` | Accessory name in HomeKit                                                                                                                                                               |
+| `vin`                                 | –                       | Vehicle identification number (required)                                                                                                                                                |
+| `token`                               | –                       | API key (required)                                                                                                                                                                      |
+| `commandToken`                        | –                       | Separate API key for commands                                                                                                                                                           |
+| `spin`                                | –                       | S-PIN, only needed for the auxiliary heating                                                                                                                                            |
+| `home.lat`, `home.lon`                | –                       | Home coordinates for the "Home" sensor                                                                                                                                                  |
+| `home.radiusMeters`                   | `150`                   | Radius around home, at least 10 m                                                                                                                                                       |
+| `pollingIntervalMinutes`              | `5`                     | Polling interval, at least 4 (see below)                                                                                                                                                |
+| `commandRefreshDelaySeconds`          | `90`                    | Delay before the refresh after a command (15–600)                                                                                                                                       |
+| `lowBatteryThreshold`                 | `20`                    | Low battery below this state of charge (%)                                                                                                                                              |
+| `climateTemperature`                  | `21`                    | Cabin temperature (°C) until the vehicle reports one                                                                                                                                    |
+| `airConditioningWithoutExternalPower` | –                       | Allow air conditioning on battery; unset keeps the vehicle setting                                                                                                                      |
+| `auxiliaryHeatingDurationMinutes`     | –                       | Auxiliary heating run time; unset keeps the vehicle setting                                                                                                                             |
+| `features.*`                          | see table above         | `battery`, `stateOfChargeSensor`, `charging`, `chargingLimit`, `climate`, `auxiliaryHeating`, `activeVentilation`, `presence`, `doors`, `windows`, `trunk`, `bonnet`, `sunroof`, `lock` |
 
 ## Rate limit
 
@@ -159,14 +159,14 @@ suggests, and a command may take a minute or two to show up.
 
 ## Troubleshooting
 
-| Log message | Meaning |
-| --- | --- |
-| `The API key has expired` | Create or renew a key in the MyŠkoda app and update the config |
-| `The API key does not cover this vehicle or operation` | The key was created for another vehicle, or the VIN is wrong |
-| `No vehicle found for the configured VIN` | Check the VIN |
-| `rate limit budget exhausted` | Too many commands in the last hour; try again later |
-| `the vehicle declined the request` | The vehicle refused for now (e.g. low battery); try again later |
-| `this function is currently disabled for the vehicle` | Enable the service for the vehicle in the MyŠkoda app |
+| Log message                                            | Meaning                                                         |
+| ------------------------------------------------------ | --------------------------------------------------------------- |
+| `The API key has expired`                              | Create or renew a key in the MyŠkoda app and update the config  |
+| `The API key does not cover this vehicle or operation` | The key was created for another vehicle, or the VIN is wrong    |
+| `No vehicle found for the configured VIN`              | Check the VIN                                                   |
+| `rate limit budget exhausted`                          | Too many commands in the last hour; try again later             |
+| `the vehicle declined the request`                     | The vehicle refused for now (e.g. low battery); try again later |
+| `this function is currently disabled for the vehicle`  | Enable the service for the vehicle in the MyŠkoda app           |
 
 ## Development
 

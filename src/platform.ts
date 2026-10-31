@@ -1,12 +1,18 @@
-import type { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig } from 'homebridge';
-import { SkodaApiClient } from './api/client.js';
-import { RateBudget } from './api/rateBudget.js';
-import { parseVehicleConfig, type VehicleSettings } from './config.js';
-import { VehicleAccessory } from './accessory/vehicleAccessory.js';
-import { PLATFORM_NAME, PLUGIN_NAME, PLUGIN_VERSION } from './settings.js';
-import { createVehicleLogger, type Logger } from './util/logger.js';
-import { maskVin } from './util/redact.js';
-import { VehicleController } from './vehicle/vehicleController.js';
+import type {
+  API,
+  DynamicPlatformPlugin,
+  Logging,
+  PlatformAccessory,
+  PlatformConfig,
+} from "homebridge";
+import { SkodaApiClient } from "./api/client.js";
+import { RateBudget } from "./api/rateBudget.js";
+import { parseVehicleConfig, type VehicleSettings } from "./config.js";
+import { VehicleAccessory } from "./accessory/vehicleAccessory.js";
+import { PLATFORM_NAME, PLUGIN_NAME, PLUGIN_VERSION } from "./settings.js";
+import { createVehicleLogger, type Logger } from "./util/logger.js";
+import { maskVin } from "./util/redact.js";
+import { VehicleController } from "./vehicle/vehicleController.js";
 
 export class SkodaPlatform implements DynamicPlatformPlugin {
   private readonly cachedAccessories = new Map<string, PlatformAccessory>();
@@ -17,10 +23,10 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     private readonly config: PlatformConfig,
     private readonly api: API,
   ) {
-    api.on('didFinishLaunching', () => {
+    api.on("didFinishLaunching", () => {
       this.setUpVehicles();
     });
-    api.on('shutdown', () => {
+    api.on("shutdown", () => {
       for (const controller of this.controllers) {
         controller.stop();
       }
@@ -32,9 +38,11 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
   }
 
   private setUpVehicles(): void {
-    const rawVehicles: unknown[] = Array.isArray(this.config.vehicles) ? (this.config.vehicles as unknown[]) : [];
+    const rawVehicles: unknown[] = Array.isArray(this.config.vehicles)
+      ? (this.config.vehicles as unknown[])
+      : [];
     if (rawVehicles.length === 0) {
-      this.log.warn('No vehicles configured.');
+      this.log.warn("No vehicles configured.");
     }
 
     const activeUuids = new Set<string>();
@@ -49,7 +57,9 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
       const { settings } = result;
       const uuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${settings.vin}`);
       if (activeUuids.has(uuid)) {
-        this.log.error(`Skipping vehicles[${index}]: VIN ${maskVin(settings.vin)} is configured twice`);
+        this.log.error(
+          `Skipping vehicles[${index}]: VIN ${maskVin(settings.vin)} is configured twice`,
+        );
         return;
       }
       activeUuids.add(uuid);
@@ -67,18 +77,28 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
 
     for (const [uuid, accessory] of this.cachedAccessories) {
       if (!activeUuids.has(uuid)) {
-        this.log.info(`Removing vehicle "${accessory.displayName}" that is no longer configured`);
-        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+        this.log.info(
+          `Removing vehicle "${accessory.displayName}" that is no longer configured`,
+        );
+        this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+          accessory,
+        ]);
       }
     }
   }
 
-  private setUpVehicle(settings: VehicleSettings, uuid: string, log: Logger): void {
+  private setUpVehicle(
+    settings: VehicleSettings,
+    uuid: string,
+    log: Logger,
+  ): void {
     let accessory = this.cachedAccessories.get(uuid);
     if (!accessory) {
       accessory = new this.api.platformAccessory(settings.name, uuid);
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      log.info('Added vehicle');
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+        accessory,
+      ]);
+      log.info("Added vehicle");
     }
 
     // The rate limit applies per VIN, so both keys of a vehicle share one budget.
@@ -92,7 +112,9 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
       vin: settings.vin,
       budget,
       userAgent,
-      onKeyExpiry: keyExpiry(settings.commandToken ? 'polling API key' : 'API key'),
+      onKeyExpiry: keyExpiry(
+        settings.commandToken ? "polling API key" : "API key",
+      ),
     });
     const commandClient = settings.commandToken
       ? new SkodaApiClient({
@@ -100,7 +122,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
           vin: settings.vin,
           budget,
           userAgent,
-          onKeyExpiry: keyExpiry('command API key'),
+          onKeyExpiry: keyExpiry("command API key"),
         })
       : pollClient;
 
@@ -113,8 +135,16 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     });
     this.controllers.push(controller);
 
-    new VehicleAccessory({ hap: this.api.hap, accessory, controller, settings, log });
-    log.info(`Polling every ${settings.pollingIntervalMinutes} min${settings.commandToken ? ', separate command key' : ''}`);
+    new VehicleAccessory({
+      hap: this.api.hap,
+      accessory,
+      controller,
+      settings,
+      log,
+    });
+    log.info(
+      `Polling every ${settings.pollingIntervalMinutes} min${settings.commandToken ? ", separate command key" : ""}`,
+    );
     controller.start();
   }
 }

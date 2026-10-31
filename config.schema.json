@@ -117,24 +117,76 @@
               "title": "Features",
               "type": "object",
               "properties": {
-                "battery": { "title": "Battery", "type": "boolean", "default": true },
+                "battery": {
+                  "title": "Battery",
+                  "type": "boolean",
+                  "default": true
+                },
                 "stateOfChargeSensor": {
                   "title": "State of charge as humidity sensor (for automations)",
                   "type": "boolean",
                   "default": false
                 },
-                "charging": { "title": "Charging (outlet)", "type": "boolean", "default": true },
-                "chargingLimit": { "title": "Charge limit (lightbulb brightness)", "type": "boolean", "default": true },
-                "climate": { "title": "Air conditioning (heater cooler)", "type": "boolean", "default": true },
-                "auxiliaryHeating": { "title": "Auxiliary heating (needs S-PIN)", "type": "boolean", "default": true },
-                "activeVentilation": { "title": "Active ventilation", "type": "boolean", "default": false },
-                "presence": { "title": "At home (needs home location)", "type": "boolean", "default": true },
-                "doors": { "title": "Doors", "type": "boolean", "default": true },
-                "windows": { "title": "Windows", "type": "boolean", "default": true },
-                "trunk": { "title": "Trunk", "type": "boolean", "default": true },
-                "bonnet": { "title": "Bonnet", "type": "boolean", "default": true },
-                "sunroof": { "title": "Sunroof", "type": "boolean", "default": true },
-                "lock": { "title": "Locked (read-only)", "type": "boolean", "default": true }
+                "charging": {
+                  "title": "Charging (outlet)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "chargingLimit": {
+                  "title": "Charge limit (lightbulb brightness)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "climate": {
+                  "title": "Air conditioning (heater cooler)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "auxiliaryHeating": {
+                  "title": "Auxiliary heating (needs S-PIN)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "activeVentilation": {
+                  "title": "Active ventilation",
+                  "type": "boolean",
+                  "default": false
+                },
+                "presence": {
+                  "title": "At home (needs home location)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "doors": {
+                  "title": "Doors",
+                  "type": "boolean",
+                  "default": true
+                },
+                "windows": {
+                  "title": "Windows",
+                  "type": "boolean",
+                  "default": true
+                },
+                "trunk": {
+                  "title": "Trunk",
+                  "type": "boolean",
+                  "default": true
+                },
+                "bonnet": {
+                  "title": "Bonnet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "sunroof": {
+                  "title": "Sunroof",
+                  "type": "boolean",
+                  "default": true
+                },
+                "lock": {
+                  "title": "Locked (read-only)",
+                  "type": "boolean",
+                  "default": true
+                }
               }
             }
           }
@@ -176,7 +228,11 @@
             {
               "type": "flex",
               "flex-flow": "row wrap",
-              "items": ["vehicles[].home.lat", "vehicles[].home.lon", "vehicles[].home.radiusMeters"]
+              "items": [
+                "vehicles[].home.lat",
+                "vehicles[].home.lon",
+                "vehicles[].home.radiusMeters"
+              ]
             }
           ]
         },
@@ -185,7 +241,10 @@
           "title": "Polling",
           "expandable": true,
           "expanded": false,
-          "items": ["vehicles[].pollingIntervalMinutes", "vehicles[].lowBatteryThreshold"]
+          "items": [
+            "vehicles[].pollingIntervalMinutes",
+            "vehicles[].lowBatteryThreshold"
+          ]
         },
         {
           "type": "fieldset",

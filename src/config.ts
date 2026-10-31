@@ -1,5 +1,9 @@
-import { DEFAULT_COMMAND_RESERVE, DEFAULT_RATE_LIMIT, minimumPollingIntervalMinutes } from './api/rateBudget.js';
-import { maskVin } from './util/redact.js';
+import {
+  DEFAULT_COMMAND_RESERVE,
+  DEFAULT_RATE_LIMIT,
+  minimumPollingIntervalMinutes,
+} from "./api/rateBudget.js";
+import { maskVin } from "./util/redact.js";
 
 export interface FeatureToggles {
   /** Battery service (level, charging state, low battery). */
@@ -69,7 +73,10 @@ export interface VehicleSettings {
 }
 
 export const DEFAULT_POLLING_INTERVAL_MINUTES = 5;
-export const MIN_POLLING_INTERVAL_MINUTES = minimumPollingIntervalMinutes(DEFAULT_RATE_LIMIT, DEFAULT_COMMAND_RESERVE);
+export const MIN_POLLING_INTERVAL_MINUTES = minimumPollingIntervalMinutes(
+  DEFAULT_RATE_LIMIT,
+  DEFAULT_COMMAND_RESERVE,
+);
 export const MAX_POLLING_INTERVAL_MINUTES = 24 * 60;
 export const DEFAULT_LOW_BATTERY_THRESHOLD = 20;
 export const DEFAULT_HOME_RADIUS_METERS = 150;
@@ -88,17 +95,24 @@ export type ConfigResult =
 
 type RawObject = Record<string, unknown>;
 
-const isObject = (value: unknown): value is RawObject => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isObject = (value: unknown): value is RawObject =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+  return typeof value === "string" && value.trim() !== ""
+    ? value.trim()
+    : undefined;
 }
 
 function optionalNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
-  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
+  if (
+    typeof value === "string" &&
+    value.trim() !== "" &&
+    Number.isFinite(Number(value))
+  ) {
     return Number(value);
   }
   return undefined;
@@ -113,11 +127,13 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const vin = optionalString(raw.vin)?.toUpperCase().replace(/\s+/g, '');
+  const vin = optionalString(raw.vin)?.toUpperCase().replace(/\s+/g, "");
   if (!vin) {
     errors.push(`${label}.vin is missing`);
   } else if (!VIN_PATTERN.test(vin)) {
-    errors.push(`${label}.vin (${maskVin(vin)}) is not a valid 17-character VIN`);
+    errors.push(
+      `${label}.vin (${maskVin(vin)}) is not a valid 17-character VIN`,
+    );
   }
 
   const token = optionalString(raw.token);
@@ -129,9 +145,11 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
 
   const features: FeatureToggles = { ...DEFAULT_FEATURES };
   if (isObject(raw.features)) {
-    for (const key of Object.keys(DEFAULT_FEATURES) as (keyof FeatureToggles)[]) {
+    for (const key of Object.keys(
+      DEFAULT_FEATURES,
+    ) as (keyof FeatureToggles)[]) {
       const value = raw.features[key];
-      if (typeof value === 'boolean') {
+      if (typeof value === "boolean") {
         features[key] = value;
       }
     }
@@ -145,7 +163,9 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     features.presence = false;
   }
 
-  let pollingIntervalMinutes = optionalNumber(raw.pollingIntervalMinutes) ?? DEFAULT_POLLING_INTERVAL_MINUTES;
+  let pollingIntervalMinutes =
+    optionalNumber(raw.pollingIntervalMinutes) ??
+    DEFAULT_POLLING_INTERVAL_MINUTES;
   if (pollingIntervalMinutes < MIN_POLLING_INTERVAL_MINUTES) {
     warnings.push(
       `pollingIntervalMinutes ${pollingIntervalMinutes} is below the minimum of ${MIN_POLLING_INTERVAL_MINUTES} ` +
@@ -153,16 +173,28 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     );
     pollingIntervalMinutes = MIN_POLLING_INTERVAL_MINUTES;
   }
-  pollingIntervalMinutes = Math.min(pollingIntervalMinutes, MAX_POLLING_INTERVAL_MINUTES);
+  pollingIntervalMinutes = Math.min(
+    pollingIntervalMinutes,
+    MAX_POLLING_INTERVAL_MINUTES,
+  );
 
-  const climateTemperature = clampTemperature(optionalNumber(raw.climateTemperature) ?? DEFAULT_CLIMATE_TEMPERATURE);
-  const lowBatteryThreshold = clamp(optionalNumber(raw.lowBatteryThreshold) ?? DEFAULT_LOW_BATTERY_THRESHOLD, 0, 100);
+  const climateTemperature = clampTemperature(
+    optionalNumber(raw.climateTemperature) ?? DEFAULT_CLIMATE_TEMPERATURE,
+  );
+  const lowBatteryThreshold = clamp(
+    optionalNumber(raw.lowBatteryThreshold) ?? DEFAULT_LOW_BATTERY_THRESHOLD,
+    0,
+    100,
+  );
   const commandRefreshDelaySeconds = clamp(
-    optionalNumber(raw.commandRefreshDelaySeconds) ?? DEFAULT_COMMAND_REFRESH_DELAY_SECONDS,
+    optionalNumber(raw.commandRefreshDelaySeconds) ??
+      DEFAULT_COMMAND_REFRESH_DELAY_SECONDS,
     15,
     600,
   );
-  const auxiliaryHeatingDuration = optionalNumber(raw.auxiliaryHeatingDurationMinutes);
+  const auxiliaryHeatingDuration = optionalNumber(
+    raw.auxiliaryHeatingDurationMinutes,
+  );
 
   if (errors.length > 0 || !vin || !token) {
     return { ok: false, errors };
@@ -182,16 +214,24 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
       lowBatteryThreshold,
       climateTemperature,
       airConditioningWithoutExternalPower:
-        typeof raw.airConditioningWithoutExternalPower === 'boolean' ? raw.airConditioningWithoutExternalPower : undefined,
+        typeof raw.airConditioningWithoutExternalPower === "boolean"
+          ? raw.airConditioningWithoutExternalPower
+          : undefined,
       auxiliaryHeatingDurationMinutes:
-        auxiliaryHeatingDuration === undefined ? undefined : clamp(Math.round(auxiliaryHeatingDuration), 1, 60),
+        auxiliaryHeatingDuration === undefined
+          ? undefined
+          : clamp(Math.round(auxiliaryHeatingDuration), 1, 60),
       commandRefreshDelaySeconds,
       features,
     },
   };
 }
 
-function parseHome(raw: unknown, label: string, errors: string[]): HomeLocation | undefined {
+function parseHome(
+  raw: unknown,
+  label: string,
+  errors: string[],
+): HomeLocation | undefined {
   if (!isObject(raw)) {
     return undefined;
   }
@@ -208,7 +248,10 @@ function parseHome(raw: unknown, label: string, errors: string[]): HomeLocation 
     errors.push(`${label}.lon must be between -180 and 180`);
     return undefined;
   }
-  const radiusMeters = Math.max(10, optionalNumber(raw.radiusMeters) ?? DEFAULT_HOME_RADIUS_METERS);
+  const radiusMeters = Math.max(
+    10,
+    optionalNumber(raw.radiusMeters) ?? DEFAULT_HOME_RADIUS_METERS,
+  );
   return { latitude, longitude, radiusMeters };
 }
 
@@ -217,6 +260,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export function clampTemperature(celsius: number): number {
-  const stepped = Math.round(celsius / CLIMATE_TEMPERATURE_STEP) * CLIMATE_TEMPERATURE_STEP;
+  const stepped =
+    Math.round(celsius / CLIMATE_TEMPERATURE_STEP) * CLIMATE_TEMPERATURE_STEP;
   return clamp(stepped, CLIMATE_TEMPERATURE_MIN, CLIMATE_TEMPERATURE_MAX);
 }

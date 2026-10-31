@@ -1,4 +1,4 @@
-import { maskVin, redact } from './redact.js';
+import { maskVin, redact } from "./redact.js";
 
 /** The subset of the Homebridge logger the plugin uses. */
 export interface Logger {
