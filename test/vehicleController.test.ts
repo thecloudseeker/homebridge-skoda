@@ -233,39 +233,6 @@ describe('VehicleController commands', () => {
     controller.stop();
   });
 
-  it('holds an optimistic patch until confirmed or expired', async () => {
-    const off = () => {
-      const body = loadFixture('enyaq');
-      body.vehicle.activeVentilation = { state: 'OFF' };
-      return mockResponse({ body });
-    };
-    const running = () => {
-      const body = loadFixture('enyaq');
-      body.vehicle.activeVentilation = { state: 'VENTILATION' };
-      return mockResponse({ body });
-    };
-    const fetch = routedFetch([off(), mockResponse({ status: 202 }), off(), running(), off()]);
-    const { controller } = setup(fetch);
-    controller.start();
-    await vi.advanceTimersByTimeAsync(0);
-
-    await controller.runCommand(
-      'Start active ventilation',
-      (c) => c.startActiveVentilation(),
-      (v) => {
-        v.activeVentilation = { state: 'VENTILATION' };
-      },
-      { key: 'ventilation', holdMs: 30 * MINUTE, isConfirmed: (v) => v.activeVentilation?.state === 'VENTILATION' },
-    );
-    await vi.advanceTimersByTimeAsync(90_000); // refresh reports OFF, patch still held
-    expect(controller.snapshot?.vehicle.activeVentilation?.state).toBe('VENTILATION');
-    await vi.advanceTimersByTimeAsync(5 * MINUTE); // vehicle confirms, hold ends
-    expect(controller.snapshot?.vehicle.activeVentilation?.state).toBe('VENTILATION');
-    await vi.advanceTimersByTimeAsync(5 * MINUTE); // later OFF is shown as reported
-    expect(controller.snapshot?.vehicle.activeVentilation?.state).toBe('OFF');
-    controller.stop();
-  });
-
   it('coalesces the refresh of several commands', async () => {
     const fetch = routedFetch();
     const { controller } = setup(fetch);

@@ -22,9 +22,6 @@ All notable changes to this project are documented in this file. The format is b
 - One follow-up refresh after commands, optimistic HomeKit updates, backoff on `429`, `5xx` and
   network errors, *StatusFault* for stale data, warning before API keys expire.
 - Optional separate API key for commands.
-- A started active ventilation stays on in HomeKit for its run time, because vehicles report the
-  running state late.
-- Clear log message for invalid or deleted API keys.
 - Homebridge UI settings with password fields for keys and S-PIN.
 
 [0.1.0]: https://github.com/thecloudseeker/homebridge-skoda/releases/tag/v0.1.0

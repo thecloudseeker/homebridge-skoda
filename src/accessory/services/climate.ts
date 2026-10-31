@@ -12,8 +12,6 @@ import { ServiceBinding, debounce, type ServiceType } from './common.js';
 const SLIDER_DEBOUNCE_MS = 3000;
 /** Pause between stop and start when the temperature changes while running; undocumented by the API. */
 const RESTART_PAUSE_MS = 10_000;
-/** Fallback when the vehicle does not report the ventilation duration. */
-const DEFAULT_VENTILATION_SECONDS = 600;
 
 /**
  * Heater cooler for the air conditioning. The API reports no cabin temperature, so the current
@@ -199,20 +197,11 @@ export class ActiveVentilationBinding extends ServiceBinding {
   protected override configure(service: Service): void {
     service.getCharacteristic(this.ctx.hap.Characteristic.On).onSet(async (value: CharacteristicValue) => {
       const on = value === true;
-      // Observed with a live vehicle: the state stays OFF for minutes while the ventilation runs,
-      // so a started ventilation is shown as running for its configured duration.
-      const durationSeconds =
-        this.ctx.controller.snapshot?.vehicle.activeVentilation?.durationInSeconds ?? DEFAULT_VENTILATION_SECONDS;
       await this.command(
         on ? 'Start active ventilation' : 'Stop active ventilation',
         (client) => (on ? client.startActiveVentilation() : client.stopActiveVentilation()),
         (vehicle) => {
           vehicle.activeVentilation = { ...vehicle.activeVentilation, state: on ? 'VENTILATION' : 'OFF' };
-        },
-        {
-          key: 'activeVentilation',
-          holdMs: on ? durationSeconds * 1000 : 0,
-          isConfirmed: (vehicle) => isActiveVentilationOn(vehicle) === true,
         },
       );
     });

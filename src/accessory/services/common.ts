@@ -4,7 +4,7 @@ import type { Vehicle } from '../../api/types.js';
 import type { FeatureToggles, VehicleSettings } from '../../config.js';
 import type { Logger } from '../../util/logger.js';
 import type { VehicleSnapshot } from '../../vehicle/snapshot.js';
-import type { CommandOptions, VehicleController } from '../../vehicle/vehicleController.js';
+import type { VehicleController } from '../../vehicle/vehicleController.js';
 
 export type HAP = API['hap'];
 export type ServiceType = WithUUID<typeof Service>;
@@ -114,10 +114,9 @@ export abstract class ServiceBinding {
     label: string,
     send: (client: SkodaApiClient) => Promise<void>,
     optimistic?: (vehicle: Vehicle) => void,
-    options?: CommandOptions,
   ): Promise<void> {
     try {
-      await this.ctx.controller.runCommand(label, send, optimistic, options);
+      await this.ctx.controller.runCommand(label, send, optimistic);
     } catch {
       setTimeout(() => {
         this.rerender();
