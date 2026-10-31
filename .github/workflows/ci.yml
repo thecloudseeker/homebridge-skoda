@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm install --no-save homebridge@~1.8.5 hap-nodejs@0.12.3
       - run: npx tsc -p tsconfig.build.json --noEmit
       - run: npx vitest run -c vitest.homebridge1.config.ts

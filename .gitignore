@@ -8,3 +8,6 @@ coverage/
 # local Homebridge test instances may contain real API keys
 .homebridge/
 config.json
+# output of npm pack
+*.tgz
+.eslintcache
