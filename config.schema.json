@@ -1,0 +1,216 @@
+{
+  "pluginAlias": "Skoda",
+  "pluginType": "platform",
+  "singular": true,
+  "strictValidation": false,
+  "headerDisplay": "Connects Škoda vehicles through the official **MyŠkoda Public API**. Create an API key in the MyŠkoda app under *Profile › Smart Home › API keys*. The API allows **20 requests per hour per vehicle**, so data is polled every few minutes and commands take a moment to show up. This is not an official Škoda project.",
+  "footerDisplay": "See the [README](https://github.com/thecloudseeker/homebridge-skoda#readme) for details on each feature.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "vehicles": {
+        "title": "Vehicles",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "placeholder": "Enyaq",
+              "description": "Name of the accessory in HomeKit."
+            },
+            "vin": {
+              "title": "VIN",
+              "type": "string",
+              "required": true,
+              "minLength": 17,
+              "maxLength": 17,
+              "pattern": "^[A-HJ-NPR-Za-hj-npr-z0-9]{17}$",
+              "description": "17-character vehicle identification number."
+            },
+            "token": {
+              "title": "API key",
+              "type": "string",
+              "required": true,
+              "description": "API key from the MyŠkoda app. Used for polling, and for commands unless a command key is set."
+            },
+            "commandToken": {
+              "title": "Command API key (optional)",
+              "type": "string",
+              "description": "Separate key for commands, e.g. with different permissions. Both keys share the vehicle's rate limit, so a second key does not allow more requests."
+            },
+            "spin": {
+              "title": "S-PIN (optional)",
+              "type": "string",
+              "description": "Security PIN of your MyŠkoda account. Only needed for the auxiliary heating; it is sent with each start and never logged."
+            },
+            "home": {
+              "title": "Home location",
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "title": "Latitude",
+                  "type": "number",
+                  "minimum": -90,
+                  "maximum": 90
+                },
+                "lon": {
+                  "title": "Longitude",
+                  "type": "number",
+                  "minimum": -180,
+                  "maximum": 180
+                },
+                "radiusMeters": {
+                  "title": "Radius (m)",
+                  "type": "integer",
+                  "minimum": 10,
+                  "placeholder": 150
+                }
+              }
+            },
+            "pollingIntervalMinutes": {
+              "title": "Polling interval (minutes)",
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 1440,
+              "placeholder": 5,
+              "description": "Minimum 4: 20 requests per hour minus 4 kept free for commands and their follow-up refresh."
+            },
+            "commandRefreshDelaySeconds": {
+              "title": "Refresh after command (seconds)",
+              "type": "integer",
+              "minimum": 15,
+              "maximum": 600,
+              "placeholder": 90,
+              "description": "Delay before the single follow-up refresh after a command."
+            },
+            "lowBatteryThreshold": {
+              "title": "Low battery threshold (%)",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "placeholder": 20
+            },
+            "climateTemperature": {
+              "title": "Default cabin temperature (°C)",
+              "type": "number",
+              "minimum": 16,
+              "maximum": 29.5,
+              "multipleOf": 0.5,
+              "placeholder": 21,
+              "description": "Used until the vehicle reports its own target temperature."
+            },
+            "airConditioningWithoutExternalPower": {
+              "title": "Allow air conditioning on battery",
+              "type": "boolean",
+              "description": "Sent with each start. Leave unset to keep the vehicle's setting."
+            },
+            "auxiliaryHeatingDurationMinutes": {
+              "title": "Auxiliary heating duration (minutes)",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60,
+              "description": "Leave empty to use the vehicle's setting."
+            },
+            "features": {
+              "title": "Features",
+              "type": "object",
+              "properties": {
+                "battery": { "title": "Battery", "type": "boolean", "default": true },
+                "stateOfChargeSensor": {
+                  "title": "State of charge as humidity sensor (for automations)",
+                  "type": "boolean",
+                  "default": false
+                },
+                "charging": { "title": "Charging (outlet)", "type": "boolean", "default": true },
+                "chargingLimit": { "title": "Charge limit (lightbulb brightness)", "type": "boolean", "default": true },
+                "climate": { "title": "Air conditioning (heater cooler)", "type": "boolean", "default": true },
+                "auxiliaryHeating": { "title": "Auxiliary heating (needs S-PIN)", "type": "boolean", "default": true },
+                "activeVentilation": { "title": "Active ventilation", "type": "boolean", "default": false },
+                "presence": { "title": "At home (needs home location)", "type": "boolean", "default": true },
+                "doors": { "title": "Doors", "type": "boolean", "default": true },
+                "windows": { "title": "Windows", "type": "boolean", "default": true },
+                "trunk": { "title": "Trunk", "type": "boolean", "default": true },
+                "bonnet": { "title": "Bonnet", "type": "boolean", "default": true },
+                "sunroof": { "title": "Sunroof", "type": "boolean", "default": true },
+                "lock": { "title": "Locked (read-only)", "type": "boolean", "default": true }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "layout": [
+    {
+      "key": "vehicles",
+      "type": "array",
+      "orderable": false,
+      "buttonText": "Add vehicle",
+      "items": [
+        "vehicles[].name",
+        "vehicles[].vin",
+        { "key": "vehicles[].token", "type": "password" },
+        {
+          "type": "fieldset",
+          "title": "Commands",
+          "expandable": true,
+          "expanded": false,
+          "items": [
+            { "key": "vehicles[].commandToken", "type": "password" },
+            { "key": "vehicles[].spin", "type": "password" },
+            "vehicles[].commandRefreshDelaySeconds",
+            "vehicles[].climateTemperature",
+            "vehicles[].airConditioningWithoutExternalPower",
+            "vehicles[].auxiliaryHeatingDurationMinutes"
+          ]
+        },
+        {
+          "type": "fieldset",
+          "title": "Home location",
+          "description": "Used for the \"Home\" occupancy sensor.",
+          "expandable": true,
+          "expanded": false,
+          "items": [
+            {
+              "type": "flex",
+              "flex-flow": "row wrap",
+              "items": ["vehicles[].home.lat", "vehicles[].home.lon", "vehicles[].home.radiusMeters"]
+            }
+          ]
+        },
+        {
+          "type": "fieldset",
+          "title": "Polling",
+          "expandable": true,
+          "expanded": false,
+          "items": ["vehicles[].pollingIntervalMinutes", "vehicles[].lowBatteryThreshold"]
+        },
+        {
+          "type": "fieldset",
+          "title": "Features",
+          "description": "Services are only created if the vehicle supports them.",
+          "expandable": true,
+          "expanded": false,
+          "items": [
+            "vehicles[].features.battery",
+            "vehicles[].features.stateOfChargeSensor",
+            "vehicles[].features.charging",
+            "vehicles[].features.chargingLimit",
+            "vehicles[].features.climate",
+            "vehicles[].features.auxiliaryHeating",
+            "vehicles[].features.activeVentilation",
+            "vehicles[].features.presence",
+            "vehicles[].features.doors",
+            "vehicles[].features.windows",
+            "vehicles[].features.trunk",
+            "vehicles[].features.bonnet",
+            "vehicles[].features.sunroof",
+            "vehicles[].features.lock"
+          ]
+        }
+      ]
+    }
+  ]
+}
