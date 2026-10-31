@@ -3,7 +3,7 @@
   "pluginType": "platform",
   "singular": true,
   "strictValidation": false,
-  "headerDisplay": "Connects Škoda vehicles through the official **MyŠkoda Public API**. Create an API key in the MyŠkoda app under *Profile › Smart Home › API keys*. The API allows **20 requests per hour per vehicle**, so data is polled every few minutes and commands take a moment to show up. This is not an official Škoda project.",
+  "headerDisplay": "Connects Škoda vehicles through the official **MyŠkoda Public API**. Create an API key in the MyŠkoda app under *Profile › Smart Home* (or open [go.skoda.eu/api-keys](https://go.skoda.eu/api-keys) on your phone). The API allows **20 requests per hour per vehicle**, so data is polled every few minutes and commands take a moment to show up. This is not an official Škoda project.",
   "footerDisplay": "See the [README](https://github.com/thecloudseeker/homebridge-skoda#readme) for details on each feature.",
   "schema": {
     "type": "object",

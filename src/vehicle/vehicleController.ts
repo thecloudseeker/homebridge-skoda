@@ -112,7 +112,7 @@ export class VehicleController {
     const days = Math.max(0, Math.floor(remainingMs / (24 * HOUR)));
     this.options.log.warn(
       `The ${keyLabel} expires on ${expiresAt.toISOString()} (in ${days} day(s)). ` +
-        'Renew it in the MyŠkoda app under Profile > Smart Home > API keys.',
+        'Renew it in the MyŠkoda app under Profile > Smart Home (https://go.skoda.eu/api-keys).',
     );
   }
 

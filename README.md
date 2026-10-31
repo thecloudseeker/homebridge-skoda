@@ -1,0 +1,179 @@
+# Homebridge Škoda
+
+[![CI](https://github.com/thecloudseeker/homebridge-skoda/actions/workflows/ci.yml/badge.svg)](https://github.com/thecloudseeker/homebridge-skoda/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)](LICENSE)
+
+Homebridge plugin that brings Škoda vehicles into Apple Home through the official
+[MyŠkoda Public API](https://public.api.connect.skoda-auto.cz/docs): state of charge, charging,
+air conditioning, auxiliary heating, "at home" detection, doors, windows and lock state.
+
+> [!IMPORTANT]
+> This is **not an official Škoda project**. It is not affiliated with, endorsed by or supported by
+> ŠKODA AUTO a.s. "Škoda" and "MyŠkoda" are trademarks of their respective owner.
+>
+> Škoda provides the MyŠkoda Public API **for personal end-user use only**. Do not use this plugin
+> to build or operate commercial products or services.
+
+## Features
+
+Each vehicle becomes one HomeKit accessory. A service is only created if it is enabled in the
+config **and** the vehicle reports that it supports it.
+
+| HomeKit service | Shows | Controls | Default |
+| --- | --- | --- | --- |
+| Battery | State of charge, charging state, low battery below a threshold | – | on |
+| Humidity sensor "State of Charge" | State of charge in %, so you can build automations on it | – | off |
+| Outlet "Charging" | *On* = charging, *Outlet In Use* = cable plugged in | Start / stop charging | on |
+| Lightbulb "Charge Limit" | Brightness = charging limit (50–100 % in steps of 10) | Set charging limit | on |
+| Heater Cooler "Climate" | Active, heating / cooling, target temperature | Start / stop air conditioning, set temperature | on |
+| Switch "Auxiliary Heating" | Running | Start / stop (needs your S-PIN) | on |
+| Switch "Ventilation" | Running | Start / stop active ventilation | off |
+| Occupancy sensor "Home" | Parked within a radius around your home | – | on |
+| Contact sensors "Doors", "Windows", "Trunk", "Bonnet", "Sunroof" | Open / closed | – | on |
+| Contact sensor "Locked" | Closed = locked, open = unlocked | – (the API cannot lock or unlock) | on |
+
+What the API does **not** offer, and therefore this plugin neither: locking and unlocking, honking
+and flashing, waking the vehicle up, cabin temperature, and push updates.
+
+### HomeKit notes
+
+- **Climate.** The API has no cabin temperature reading, so *Current Temperature* mirrors the
+  target temperature. The API has no heat or cool mode either, so the mode is fixed to *Auto* and
+  both thresholds always hold the same value. Temperatures range from 16 to 29.5 °C in steps of
+  0.5 °C. Changing the temperature while the air conditioning is running restarts it (stop,
+  10 s pause, start), which costs two requests. While it is off, the new temperature is used on
+  the next start.
+- **Charge limit.** HomeKit has no control for a percentage setpoint, so the limit is shown as the
+  brightness of a lightbulb. It cannot be switched off. Values snap to 50–100 % in steps of 10,
+  as the vehicles require.
+- **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
+  lock or unlock. A lock tile in the Home app would suggest otherwise.
+- **Stale data.** If the last successful update is older than three polling intervals, the sensors
+  show a fault (*StatusFault*). Battery, outlet, switches and the heater cooler have no fault
+  indicator in HomeKit.
+
+## Requirements
+
+- A connected Škoda vehicle and a MyŠkoda account
+- Homebridge 1.8 or 2.x
+- Node.js 22, 24 or 26
+
+## Installation
+
+The plugin is not published to npm yet. Once it is, search for `@thecloudseeker/homebridge-skoda`
+in the Homebridge UI, or run:
+
+```sh
+npm install -g @thecloudseeker/homebridge-skoda
+```
+
+## Creating an API key
+
+1. Open the **MyŠkoda app** and go to **Profile › Smart Home**. On your phone you can also open
+   [go.skoda.eu/api-keys](https://go.skoda.eu/api-keys) directly.
+2. Create a new API key and select the vehicle(s) it should cover.
+3. Copy the key into the plugin config together with the vehicle's VIN.
+
+Keys are bound to the vehicles you selected and **they expire**. The plugin warns in the log seven
+days before a key expires. Once it has expired, the plugin logs an error and retries every hour
+(failed authentication does not count against the rate limit). Renew the key in the app and
+update the config.
+
+You may configure a second key for commands only (*Command API key*), for example to keep
+permissions apart. **A second key does not give you more requests**: the rate limit applies per
+vehicle, and both keys share it.
+
+## Configuration
+
+The easiest way is the Homebridge UI. In `config.json` it looks like this:
+
+```json
+{
+  "platform": "Skoda",
+  "vehicles": [
+    {
+      "name": "Enyaq",
+      "vin": "TMBJB9NY5RF999999",
+      "token": "<your API key>",
+      "home": { "lat": 50.4128, "lon": 14.9069, "radiusMeters": 150 },
+      "pollingIntervalMinutes": 5,
+      "features": { "stateOfChargeSensor": true }
+    }
+  ]
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `name` | `Škoda <last 4 of VIN>` | Accessory name in HomeKit |
+| `vin` | – | Vehicle identification number (required) |
+| `token` | – | API key (required) |
+| `commandToken` | – | Separate API key for commands |
+| `spin` | – | S-PIN, only needed for the auxiliary heating |
+| `home.lat`, `home.lon` | – | Home coordinates for the "Home" sensor |
+| `home.radiusMeters` | `150` | Radius around home, at least 10 m |
+| `pollingIntervalMinutes` | `5` | Polling interval, at least 4 (see below) |
+| `commandRefreshDelaySeconds` | `90` | Delay before the refresh after a command (15–600) |
+| `lowBatteryThreshold` | `20` | Low battery below this state of charge (%) |
+| `climateTemperature` | `21` | Cabin temperature (°C) until the vehicle reports one |
+| `airConditioningWithoutExternalPower` | – | Allow air conditioning on battery; unset keeps the vehicle setting |
+| `auxiliaryHeatingDurationMinutes` | – | Auxiliary heating run time; unset keeps the vehicle setting |
+| `features.*` | see table above | `battery`, `stateOfChargeSensor`, `charging`, `chargingLimit`, `climate`, `auxiliaryHeating`, `activeVentilation`, `presence`, `doors`, `windows`, `trunk`, `bonnet`, `sunroof`, `lock` |
+
+## Rate limit
+
+The MyŠkoda Public API currently allows **20 requests per hour per vehicle**. Škoda says this value
+is not final, so the plugin follows the `RateLimit-*` headers of every response. Every request
+counts, including commands and failed requests with server errors.
+
+The plugin is built around that limit:
+
+- **One request per update.** A single call returns all vehicle data.
+- **HomeKit never triggers requests.** Opening the Home app reads from the plugin's cache.
+- **Four requests per hour stay free** for commands and their follow-up refresh. That makes 4
+  minutes the shortest polling interval; shorter values are raised with a warning. The default of
+  5 minutes uses 12 requests per hour.
+- **After a command**, HomeKit shows the expected state right away, and the plugin refreshes once
+  after `commandRefreshDelaySeconds` to confirm it. Several commands in a row share one refresh.
+- **When the budget is used up**, commands are rejected ("No Response" in the Home app) instead of
+  being sent, and polling waits until requests are available again.
+- **Errors back off.** On `429` and `503` the plugin waits for `Retry-After`. On other server and
+  network errors it waits one polling interval, then doubles the wait up to 30 minutes.
+
+Vehicles report their state on their own schedule, so data can be older than the polling interval
+suggests, and a command may take a minute or two to show up.
+
+## Privacy and security
+
+- API keys and the S-PIN are never written to the log. The VIN is shortened to its last four
+  characters (`…9999`).
+- The Homebridge UI shows the keys and the S-PIN as password fields. They are still stored in
+  plain text in Homebridge's `config.json`, like all plugin settings. Protect that file.
+- The plugin talks only to `public.api.connect.skoda-auto.cz`.
+
+## Troubleshooting
+
+| Log message | Meaning |
+| --- | --- |
+| `The API key has expired` | Create or renew a key in the MyŠkoda app and update the config |
+| `The API key does not cover this vehicle or operation` | The key was created for another vehicle, or the VIN is wrong |
+| `No vehicle found for the configured VIN` | Check the VIN |
+| `rate limit budget exhausted` | Too many commands in the last hour; try again later |
+| `the vehicle declined the request` | The vehicle refused for now (e.g. low battery); try again later |
+| `this function is currently disabled for the vehicle` | Enable the service for the vehicle in the MyŠkoda app |
+
+## Development
+
+```sh
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+The tests mock the API completely and contain no real keys or vehicle data.
+
+## License
+
+[BSD 3-Clause](LICENSE)
