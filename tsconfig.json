@@ -17,5 +17,5 @@
     "verbatimModuleSyntax": true,
     "types": ["node"]
   },
-  "include": ["src", "test", "vitest.config.ts", "eslint.config.js"]
+  "include": ["src", "test", "vitest.config.ts", "vitest.homebridge1.config.ts", "eslint.config.js"]
 }
