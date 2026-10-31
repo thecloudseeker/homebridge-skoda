@@ -25,6 +25,24 @@ export interface VehicleControllerOptions {
 
 type Listener = (snapshot: VehicleSnapshot | undefined) => void;
 
+export interface CommandOptions {
+  /** Commands with the same key replace each other's held state, e.g. start and stop of one function. */
+  key?: string;
+  /**
+   * Keeps re-applying the optimistic patch to later polls for this long. Some functions report
+   * their new state with a delay even though the vehicle already sent fresh data.
+   */
+  holdMs?: number;
+  /** Ends the hold early once the vehicle reports the expected state. */
+  isConfirmed?: (vehicle: Vehicle) => boolean;
+}
+
+interface HeldPatch {
+  apply: (vehicle: Vehicle) => void;
+  until: number;
+  isConfirmed: ((vehicle: Vehicle) => boolean) | undefined;
+}
+
 /**
  * Owns the cached state of one vehicle. HomeKit only ever reads from this cache; the controller
  * alone decides when to talk to the API, so the rate budget is never exceeded.
@@ -40,6 +58,7 @@ export class VehicleController {
   private failures = 0;
   private lastErrorKey: string | undefined;
   private readonly keyExpiryWarnedAt = new Map<string, number>();
+  private readonly held = new Map<string, HeldPatch>();
   private stopped = true;
 
   constructor(private readonly options: VehicleControllerOptions) {
@@ -75,12 +94,14 @@ export class VehicleController {
   /**
    * Sends a command and schedules one follow-up refresh. On success the optional `optimistic`
    * patch is applied to the cache right away, so HomeKit shows the expected state until the
-   * refresh confirms it. Errors are logged and rethrown for the caller to revert the UI.
+   * refresh confirms it, or for `options.holdMs` if the vehicle is known to report late.
+   * Errors are logged and rethrown for the caller to revert the UI.
    */
   async runCommand(
     label: string,
     send: (client: SkodaApiClient) => Promise<void>,
     optimistic?: (vehicle: Vehicle) => void,
+    options: CommandOptions = {},
   ): Promise<void> {
     try {
       await send(this.options.commandClient);
@@ -89,6 +110,16 @@ export class VehicleController {
       throw error;
     }
     this.options.log.info(`${label}: accepted by the vehicle`);
+    if (options.key !== undefined) {
+      this.held.delete(options.key);
+      if (optimistic && options.holdMs) {
+        this.held.set(options.key, {
+          apply: optimistic,
+          until: Date.now() + options.holdMs,
+          isConfirmed: options.isConfirmed,
+        });
+      }
+    }
     if (optimistic && this.current) {
       const patched = structuredClone(this.current);
       optimistic(patched.vehicle);
@@ -139,6 +170,7 @@ export class VehicleController {
     try {
       const response = await this.options.pollClient.getVehicle(kind);
       this.current = mergeSnapshot(this.current, response, Date.now());
+      this.applyHeldPatches(this.current.vehicle);
       if (this.failures > 0 || this.lastErrorKey) {
         this.options.log.info('Connection to the MyŠkoda API restored');
       }
@@ -202,6 +234,17 @@ export class VehicleController {
     if (this.lastErrorKey !== key) {
       this.lastErrorKey = key;
       write();
+    }
+  }
+
+  private applyHeldPatches(vehicle: Vehicle): void {
+    const now = Date.now();
+    for (const [key, patch] of this.held) {
+      if (now >= patch.until || patch.isConfirmed?.(vehicle)) {
+        this.held.delete(key);
+      } else {
+        patch.apply(vehicle);
+      }
     }
   }
 

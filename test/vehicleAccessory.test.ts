@@ -192,6 +192,48 @@ describe('VehicleAccessory', () => {
     controller.stop();
   });
 
+  it('keeps a started ventilation on while the vehicle still reports OFF', async () => {
+    // Observed live: after a 202 for start, polls kept reporting OFF while the ventilation ran.
+    const gasoline = loadFixture('gasoline-live');
+    const settings = settingsFor({ features: { activeVentilation: true } });
+    const { accessory, controller, fetch } = setup([], settings);
+    fetch.mockImplementation((_url, init) =>
+      Promise.resolve(init?.method === 'GET' ? mockResponse({ body: gasoline }) : mockResponse({ status: 202 })),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const on = accessory.getServiceById(Service.Switch, 'active-ventilation')!.getCharacteristic(Characteristic.On);
+    await on.handleSetRequest(true);
+    expect(on.value).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(90_000); // follow-up refresh still says OFF
+    expect(fetch.mock.calls.filter(([, init]) => init?.method === 'GET')).toHaveLength(2);
+    expect(on.value).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(10 * 60_000); // past the reported duration of 600 s
+    expect(on.value).toBe(false);
+    controller.stop();
+  });
+
+  it('drops the held ventilation state on stop', async () => {
+    const gasoline = loadFixture('gasoline-live');
+    const { accessory, controller, fetch } = setup([], settingsFor({ features: { activeVentilation: true } }));
+    fetch.mockImplementation((_url, init) =>
+      Promise.resolve(init?.method === 'GET' ? mockResponse({ body: gasoline }) : mockResponse({ status: 202 })),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const on = accessory.getServiceById(Service.Switch, 'active-ventilation')!.getCharacteristic(Characteristic.On);
+    await on.handleSetRequest(true);
+    await on.handleSetRequest(false);
+    expect(on.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(on.value).toBe(false);
+    controller.stop();
+  });
+
   it('sends the S-PIN with the auxiliary heating but never logs it', async () => {
     const { accessory, controller, fetch, log } = setup([mockResponse({ body: loadFixture('combustion') })], settingsFor({
       spin: '4711',

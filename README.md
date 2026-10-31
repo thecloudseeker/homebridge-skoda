@@ -46,6 +46,10 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
 - **Charge limit.** HomeKit has no control for a percentage setpoint, so the limit is shown as the
   brightness of a lightbulb. It cannot be switched off. Values snap to 50–100 % in steps of 10,
   as the vehicles require.
+- **Ventilation.** Vehicles report a started ventilation late: in tests the API still said *off*
+  minutes after the vehicle had started it. After switching it on, the switch therefore stays on
+  for the ventilation's run time (as reported by the vehicle, 10 minutes if unknown), or until the
+  vehicle reports it running. Switching it off ends this at once.
 - **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
   lock or unlock. A lock tile in the Home app would suggest otherwise.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors
