@@ -238,7 +238,14 @@ function describeConfigError(error: SkodaApiError): string {
     case 'operation-not-authorized':
       return 'The vehicle refused the request for the user the API key belongs to.';
   }
-  return error.status === 404 ? 'No vehicle found for the configured VIN.' : `Access denied (${error.message}).`;
+  switch (error.status) {
+    case 401:
+      // Observed for unknown or deleted keys: `about:blank` with "Missing or invalid API key."
+      return 'The API key is invalid or no longer exists. Check the key in the plugin config or create a new one in the MyŠkoda app.';
+    case 404:
+      return 'No vehicle found for the configured VIN.';
+  }
+  return `Access denied (${error.message}).`;
 }
 
 export function describeCommandError(error: unknown): string {
@@ -260,7 +267,7 @@ export function describeCommandError(error: unknown): string {
       case 'operation-not-authorized':
         return describeConfigError(error);
     }
-    return error.message;
+    return error.isAuthError || error.status === 404 ? describeConfigError(error) : error.message;
   }
   return error instanceof Error ? error.message : String(error);
 }

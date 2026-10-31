@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SkodaApiClient } from '../src/api/client.js';
+import { SkodaApiError } from '../src/api/errors.js';
 import { RateBudget } from '../src/api/rateBudget.js';
 import { VehicleController } from '../src/vehicle/vehicleController.js';
 import {
@@ -14,6 +15,8 @@ import {
 } from './helpers.js';
 
 const MINUTE = 60_000;
+
+const invalidKeyError = () => new SkodaApiError(401, undefined, 'Missing or invalid API key.', undefined);
 
 /** A fetch mock that serves the vehicle fixture for GET and 202 for commands, unless overridden. */
 function routedFetch(overrides: (Response | Error)[] = []) {
@@ -152,6 +155,21 @@ describe('VehicleController polling', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(log.error).toHaveBeenCalledTimes(1);
     expect(log.error.mock.calls[0]?.[0]).toContain('API key has expired');
+    controller.stop();
+  });
+
+  it('explains an invalid key', async () => {
+    // Shape of the real response for an unknown or deleted key.
+    const invalid = mockResponse({
+      status: 401,
+      body: { type: 'about:blank', title: 'Unauthorized', status: 401, detail: 'Missing or invalid API key.' },
+    });
+    const { controller, log } = setup(routedFetch([invalid]));
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(log.error).toHaveBeenCalledWith(expect.stringContaining('The API key is invalid or no longer exists'));
+    await expect(controller.runCommand('Start charging', () => Promise.reject(invalidKeyError()))).rejects.toBeDefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Start charging failed: The API key is invalid'));
     controller.stop();
   });
 
