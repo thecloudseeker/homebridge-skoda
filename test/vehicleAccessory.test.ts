@@ -192,6 +192,29 @@ describe('VehicleAccessory', () => {
     controller.stop();
   });
 
+  it('shows the ventilation as reported, like the MyŠkoda app', async () => {
+    // Observed live: the API reports OFF for the whole run of a started ventilation.
+    const gasoline = loadFixture('gasoline-live');
+    const { accessory, controller, fetch, log } = setup([], settingsFor({ features: { activeVentilation: true } }));
+    fetch.mockImplementation((_url, init) =>
+      Promise.resolve(init?.method === 'GET' ? mockResponse({ body: gasoline }) : mockResponse({ status: 202 })),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const on = accessory.getServiceById(Service.Switch, 'active-ventilation')!.getCharacteristic(Characteristic.On);
+    await on.handleSetRequest(true);
+    expect(fetch.mock.calls[1]?.[0]).toMatch(/\/active-ventilation\/start$/);
+    expect(log.info).toHaveBeenCalledWith('Start active ventilation: accepted by the vehicle');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(on.value).toBe(false);
+
+    // It can be started again right away.
+    await on.handleSetRequest(true);
+    expect(fetch.mock.calls[2]?.[0]).toMatch(/\/active-ventilation\/start$/);
+    controller.stop();
+  });
+
   it('sends the S-PIN with the auxiliary heating but never logs it', async () => {
     const { accessory, controller, fetch, log } = setup([mockResponse({ body: loadFixture('combustion') })], settingsFor({
       spin: '4711',

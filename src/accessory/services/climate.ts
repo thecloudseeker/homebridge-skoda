@@ -188,6 +188,12 @@ export class AuxiliaryHeatingBinding extends ServiceBinding {
   }
 }
 
+/**
+ * Switch for the active ventilation. It always shows the reported state, like the MyŠkoda app:
+ * observed with a live vehicle, the API kept reporting OFF for the full run of a started
+ * ventilation. After a command the switch therefore returns to the reported state, and the
+ * ventilation can be started again.
+ */
 export class ActiveVentilationBinding extends ServiceBinding {
   readonly feature = 'activeVentilation';
   protected readonly serviceType: ServiceType = this.ctx.hap.Service.Switch;
@@ -197,13 +203,12 @@ export class ActiveVentilationBinding extends ServiceBinding {
   protected override configure(service: Service): void {
     service.getCharacteristic(this.ctx.hap.Characteristic.On).onSet(async (value: CharacteristicValue) => {
       const on = value === true;
-      await this.command(
-        on ? 'Start active ventilation' : 'Stop active ventilation',
-        (client) => (on ? client.startActiveVentilation() : client.stopActiveVentilation()),
-        (vehicle) => {
-          vehicle.activeVentilation = { ...vehicle.activeVentilation, state: on ? 'VENTILATION' : 'OFF' };
-        },
+      await this.command(on ? 'Start active ventilation' : 'Stop active ventilation', (client) =>
+        on ? client.startActiveVentilation() : client.stopActiveVentilation(),
       );
+      setTimeout(() => {
+        this.rerender();
+      }, 500).unref();
     });
   }
 

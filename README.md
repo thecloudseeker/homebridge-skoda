@@ -27,7 +27,7 @@ config **and** the vehicle reports that it supports it.
 | Lightbulb "Charge Limit" | Brightness = charging limit (50–100 % in steps of 10) | Set charging limit | on |
 | Heater Cooler "Climate" | Active, heating / cooling, target temperature | Start / stop air conditioning, set temperature | on |
 | Switch "Auxiliary Heating" | Running | Start / stop (needs your S-PIN) | on |
-| Switch "Ventilation" | Running | Start / stop active ventilation | off |
+| Switch "Ventilation" | Running, as far as the vehicle reports it (see notes) | Start / stop active ventilation | off |
 | Occupancy sensor "Home" | Parked within a radius around your home | – | on |
 | Contact sensors "Doors", "Windows", "Trunk", "Bonnet", "Sunroof" | Open / closed | – | on |
 | Contact sensor "Locked" | Closed = locked, open = unlocked | – (the API cannot lock or unlock) | on |
@@ -46,6 +46,10 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
 - **Charge limit.** HomeKit has no control for a percentage setpoint, so the limit is shown as the
   brightness of a lightbulb. It cannot be switched off. Values snap to 50–100 % in steps of 10,
   as the vehicles require.
+- **Ventilation.** Vehicles currently do not report a running active ventilation: in a live test
+  the API said *off* during the whole 10-minute run, and the MyŠkoda app shows it the same way.
+  The switch therefore always shows the reported state and returns to *off* right after a start
+  was accepted (see the log). It can be started again at any time.
 - **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
   lock or unlock. A lock tile in the Home app would suggest otherwise.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors
