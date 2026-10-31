@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+# local Homebridge test instances may contain real API keys
+.homebridge/
+config.json
