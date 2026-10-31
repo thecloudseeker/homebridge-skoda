@@ -46,10 +46,12 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
 - **Charge limit.** HomeKit has no control for a percentage setpoint, so the limit is shown as the
   brightness of a lightbulb. It cannot be switched off. Values snap to 50–100 % in steps of 10,
   as the vehicles require.
-- **Ventilation.** Vehicles currently do not report a running active ventilation: in a live test
-  the API said *off* during the whole 10-minute run, and the MyŠkoda app shows it the same way.
-  The switch therefore always shows the reported state and returns to *off* right after a start
-  was accepted (see the log). It can be started again at any time.
+- **Ventilation.** A ventilation started through the Public API runs, but Škoda does not report it
+  as running: in a live test the API said *off* during the whole 10-minute run, and the MyŠkoda
+  app showed it the same way. A ventilation started in the app is reported correctly. The switch
+  therefore always shows the reported state: after you switch it on in HomeKit it returns to *off*
+  once the vehicle has accepted the start (see the log), and it shows *on* when the ventilation
+  was started in the app.
 - **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
   lock or unlock. A lock tile in the Home app would suggest otherwise.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors

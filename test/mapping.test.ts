@@ -265,3 +265,11 @@ describe('anonymized live response of a gasoline vehicle', () => {
     expect(isActiveVentilationOn(live.vehicle)).toBe(false);
   });
 });
+
+describe('ventilation started in the MyŠkoda app (observed live)', () => {
+  it('maps the reported VENTILATION state to on', () => {
+    const live = loadFixture('gasoline-live');
+    live.vehicle.activeVentilation = { state: 'VENTILATION', durationInSeconds: 600 };
+    expect(isActiveVentilationOn(live.vehicle)).toBe(true);
+  });
+});

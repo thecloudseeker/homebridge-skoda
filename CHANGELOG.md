@@ -22,8 +22,8 @@ All notable changes to this project are documented in this file. The format is b
 - One follow-up refresh after commands, optimistic HomeKit updates, backoff on `429`, `5xx` and
   network errors, *StatusFault* for stale data, warning before API keys expire.
 - Optional separate API key for commands.
-- The ventilation switch shows the reported state like the MyŠkoda app, because vehicles do not
-  report a running ventilation.
+- The ventilation switch shows the reported state like the MyŠkoda app, because a ventilation
+  started through the Public API is not reported as running.
 - Clear log message for invalid or deleted API keys.
 - Homebridge UI settings with password fields for keys and S-PIN.
 

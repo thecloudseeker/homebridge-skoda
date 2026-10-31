@@ -193,7 +193,7 @@ describe('VehicleAccessory', () => {
   });
 
   it('shows the ventilation as reported, like the MyŠkoda app', async () => {
-    // Observed live: the API reports OFF for the whole run of a started ventilation.
+    // Observed live: a ventilation started through the Public API is reported as OFF for its whole run.
     const gasoline = loadFixture('gasoline-live');
     const { accessory, controller, fetch, log } = setup([], settingsFor({ features: { activeVentilation: true } }));
     fetch.mockImplementation((_url, init) =>

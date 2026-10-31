@@ -189,9 +189,10 @@ export class AuxiliaryHeatingBinding extends ServiceBinding {
 }
 
 /**
- * Switch for the active ventilation. It always shows the reported state, like the MyŠkoda app:
- * observed with a live vehicle, the API kept reporting OFF for the full run of a started
- * ventilation. After a command the switch therefore returns to the reported state, and the
+ * Switch for the active ventilation. It always shows the reported state, like the MyŠkoda app.
+ * Observed with a live vehicle: a ventilation started through the Public API runs, but the API
+ * (and the app) keep reporting OFF for its whole run, while one started in the app is reported
+ * as VENTILATION. After a command the switch therefore returns to the reported state, and the
  * ventilation can be started again.
  */
 export class ActiveVentilationBinding extends ServiceBinding {
