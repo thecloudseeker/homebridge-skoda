@@ -3,7 +3,10 @@
   "displayName": "Homebridge Škoda",
   "version": "0.1.2",
   "description": "Homebridge plugin for Škoda vehicles using the official MyŠkoda Public API.",
-  "author": "thecloudseeker",
+  "author": {
+    "name": "thecloudseeker",
+    "url": "https://eikedreier.com/"
+  },
   "license": "BSD-3-Clause",
   "homepage": "https://github.com/thecloudseeker/homebridge-skoda#readme",
   "repository": {
