@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkodaApiClient } from "../src/api/client.js";
 import { SkodaApiError } from "../src/api/errors.js";
 import { RateBudget } from "../src/api/rateBudget.js";
+import type { Vehicle } from "../src/api/types.js";
 import { VehicleController } from "../src/vehicle/vehicleController.js";
 import {
   TEST_COMMAND_TOKEN,
@@ -39,7 +40,7 @@ function routedFetch(overrides: (Response | Error)[] = []) {
 
 function setup(
   fetch: typeof globalThis.fetch = routedFetch(),
-  options: { separateCommandKey?: boolean } = {},
+  options: { separateCommandKey?: boolean; refreshDelaySeconds?: number } = {},
 ) {
   const budget = new RateBudget();
   const log = silentLogger();
@@ -62,12 +63,27 @@ function setup(
     commandClient,
     log,
     pollingIntervalMinutes: 5,
-    commandRefreshDelaySeconds: 90,
+    commandRefreshDelaySeconds: options.refreshDelaySeconds ?? 0,
   });
   const updates = vi.fn();
   controller.onUpdate(updates);
   return { controller, budget, log, updates };
 }
+
+/** The Enyaq fixture with the charging part as the vehicle reported it at `capturedAt`. */
+function enyaqCharging(state: string, capturedAt: string) {
+  const body = loadFixture("enyaq");
+  body.vehicle.charging!.status!.state = state;
+  body.vehicle.charging!.carCapturedTimestamp = capturedAt;
+  return mockResponse({ body });
+}
+
+const stopChargingPatch = {
+  part: "charging" as const,
+  apply: (vehicle: Vehicle) => {
+    vehicle.charging!.status!.state = "READY_FOR_CHARGING";
+  },
+};
 
 const methods = (fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>) =>
   fetch.mock.calls.map(
@@ -252,22 +268,81 @@ describe("VehicleController polling", () => {
 });
 
 describe("VehicleController commands", () => {
-  it("applies the optimistic patch and refreshes once after the delay", async () => {
-    const fetch = routedFetch();
+  it("keeps the optimistic state until the vehicle reports again, without an extra request", async () => {
+    const fetch = routedFetch([
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({ status: 202 }),
+      // Next poll: the vehicle has not reported the charging part since the command.
+      mockResponse({ body: loadFixture("enyaq") }),
+      // The poll after that carries a report captured after the command.
+      enyaqCharging("CHARGING", "2026-10-31T12:06:00Z"),
+    ]);
     const { controller } = setup(fetch);
     controller.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    await controller.runCommand(
-      "Stop charging",
-      (client) => client.stopCharging(),
-      (vehicle) => {
-        vehicle.charging!.status!.state = "READY_FOR_CHARGING";
-      },
-    );
+    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
+      optimistic: stopChargingPatch,
+    });
+    const state = () => controller.snapshot?.vehicle.charging?.status?.state;
+    expect(state()).toBe("READY_FOR_CHARGING");
+
+    await vi.advanceTimersByTimeAsync(5 * MINUTE - 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(state()).toBe("READY_FOR_CHARGING");
+
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
+    expect(fetch).toHaveBeenCalledTimes(4);
+    // The vehicle's own report wins, even when it differs from the expected state.
+    expect(state()).toBe("CHARGING");
+    controller.stop();
+  });
+
+  it("ignores a report captured before the command", async () => {
+    const fetch = routedFetch([
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({ status: 202 }),
+      enyaqCharging("CHARGING", "2026-10-31T11:59:00Z"),
+    ]);
+    const { controller } = setup(fetch);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
+      optimistic: stopChargingPatch,
+    });
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
     expect(controller.snapshot?.vehicle.charging?.status?.state).toBe(
       "READY_FOR_CHARGING",
     );
+    controller.stop();
+  });
+
+  it("drops the optimistic state after 15 minutes without a report", async () => {
+    const { controller } = setup();
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
+      optimistic: stopChargingPatch,
+    });
+    const state = () => controller.snapshot?.vehicle.charging?.status?.state;
+    await vi.advanceTimersByTimeAsync(10 * MINUTE);
+    expect(state()).toBe("READY_FOR_CHARGING");
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
+    expect(state()).toBe("CHARGING");
+    controller.stop();
+  });
+
+  it("refreshes once after the delay when a refresh delay is configured", async () => {
+    const fetch = routedFetch();
+    const { controller } = setup(fetch, { refreshDelaySeconds: 90 });
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
+      optimistic: stopChargingPatch,
+    });
     expect(methods(fetch)).toEqual([
       "GET ?include=info,status,fuelStatus,odometer,parkingPosition,airConditioning,auxiliaryHeating,activeVentilation,charging,operations",
       "POST /charging/stop",
@@ -277,10 +352,6 @@ describe("VehicleController commands", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(fetch).toHaveBeenCalledTimes(3);
-    // The refresh replaced the optimistic state with the reported one.
-    expect(controller.snapshot?.vehicle.charging?.status?.state).toBe(
-      "CHARGING",
-    );
     // Regular polling continues one interval after the refresh.
     await vi.advanceTimersByTimeAsync(5 * MINUTE);
     expect(fetch).toHaveBeenCalledTimes(4);
@@ -289,7 +360,7 @@ describe("VehicleController commands", () => {
 
   it("coalesces the refresh of several commands", async () => {
     const fetch = routedFetch();
-    const { controller } = setup(fetch);
+    const { controller } = setup(fetch, { refreshDelaySeconds: 90 });
     controller.start();
     await vi.advanceTimersByTimeAsync(0);
     await controller.runCommand("Start air conditioning", (c) =>
@@ -301,6 +372,50 @@ describe("VehicleController commands", () => {
     );
     await vi.advanceTimersByTimeAsync(90_000);
     expect(methods(fetch).filter((m) => m.startsWith("GET"))).toHaveLength(2);
+    controller.stop();
+  });
+
+  it("sends no extra request after a command by default", async () => {
+    const fetch = routedFetch();
+    const { controller } = setup(fetch);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.runCommand("Start charging", (c) => c.startCharging());
+    await vi.advanceTimersByTimeAsync(5 * MINUTE - 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    controller.stop();
+  });
+
+  it("hides operations the vehicle rejects as unsupported", async () => {
+    const fetch = routedFetch([
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({
+        status: 422,
+        body: problem(422, "operation-not-supported"),
+      }),
+    ]);
+    const { controller, log } = setup(fetch);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const names = () =>
+      controller.snapshot?.vehicle.operations?.map((o) => o.name);
+    expect(names()).toContain("startCharging");
+
+    await expect(
+      controller.runCommand("Start charging", (c) => c.startCharging(), {
+        operations: ["startCharging"],
+      }),
+    ).rejects.toMatchObject({ problemType: "operation-not-supported" });
+    expect(names()).not.toContain("startCharging");
+    expect(names()).toContain("stopCharging");
+    expect(log.warn).toHaveBeenCalledWith(
+      "The vehicle does not support startCharging; the control will be removed",
+    );
+
+    // Later polls keep it hidden, although the vehicle still lists it.
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(names()).not.toContain("startCharging");
     controller.stop();
   });
 
@@ -327,7 +442,10 @@ describe("VehicleController commands", () => {
     await vi.advanceTimersByTimeAsync(0);
     const patch = vi.fn();
     await expect(
-      controller.runCommand("Start charging", (c) => c.startCharging(), patch),
+      controller.runCommand("Start charging", (c) => c.startCharging(), {
+        operations: ["startCharging"],
+        optimistic: { part: "charging", apply: patch },
+      }),
     ).rejects.toMatchObject({
       status: 422,
     });
@@ -335,6 +453,10 @@ describe("VehicleController commands", () => {
     expect(log.warn).toHaveBeenCalledWith(
       "Start charging failed: this function is currently disabled for the vehicle",
     );
+    // A disabled operation is temporary, so its control stays.
+    expect(
+      controller.snapshot?.vehicle.operations?.map((o) => o.name),
+    ).toContain("startCharging");
     controller.stop();
   });
 

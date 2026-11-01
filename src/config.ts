@@ -10,6 +10,10 @@ export interface FeatureToggles {
   battery: boolean;
   /** Humidity sensor that mirrors the state of charge, for automations. */
   stateOfChargeSensor: boolean;
+  /** Battery service with the fuel level, for combustion vehicles. */
+  fuelLevel: boolean;
+  /** Humidity sensor that mirrors the fuel level, for automations. */
+  fuelLevelSensor: boolean;
   /** Outlet to start and stop charging. */
   charging: boolean;
   /** Lightbulb whose brightness sets the charging limit. */
@@ -29,11 +33,15 @@ export interface FeatureToggles {
   sunroof: boolean;
   /** Contact sensor that is closed while the vehicle is locked. */
   lock: boolean;
+  /** Contact sensor that is open while the lights are on. */
+  lights: boolean;
 }
 
 export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
   battery: true,
   stateOfChargeSensor: false,
+  fuelLevel: true,
+  fuelLevelSensor: false,
   charging: true,
   chargingLimit: true,
   climate: true,
@@ -46,6 +54,7 @@ export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
   bonnet: true,
   sunroof: true,
   lock: true,
+  lights: false,
 };
 
 export interface HomeLocation {
@@ -85,7 +94,8 @@ export const DEFAULT_CLIMATE_TEMPERATURE = 21;
 export const CLIMATE_TEMPERATURE_MIN = 16;
 export const CLIMATE_TEMPERATURE_MAX = 29.5;
 export const CLIMATE_TEMPERATURE_STEP = 0.5;
-export const DEFAULT_COMMAND_REFRESH_DELAY_SECONDS = 90;
+/** 0: no follow-up refresh; the next scheduled poll confirms a command. */
+export const DEFAULT_COMMAND_REFRESH_DELAY_SECONDS = 0;
 
 const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 
@@ -186,12 +196,11 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     0,
     100,
   );
-  const commandRefreshDelaySeconds = clamp(
+  const refreshDelay =
     optionalNumber(raw.commandRefreshDelaySeconds) ??
-      DEFAULT_COMMAND_REFRESH_DELAY_SECONDS,
-    15,
-    600,
-  );
+    DEFAULT_COMMAND_REFRESH_DELAY_SECONDS;
+  const commandRefreshDelaySeconds =
+    refreshDelay <= 0 ? 0 : clamp(refreshDelay, 15, 600);
   const auxiliaryHeatingDuration = optionalNumber(
     raw.auxiliaryHeatingDurationMinutes,
   );

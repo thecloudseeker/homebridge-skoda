@@ -60,6 +60,32 @@ export function isPlugConnected(vehicle: Vehicle): boolean | undefined {
     : undefined;
 }
 
+/** Fuel level of the combustion engine; the electric range of a hybrid does not count. */
+export function fuelLevel(vehicle: Vehicle): number | undefined {
+  const level = [
+    vehicle.fuelStatus?.primaryEngineRange,
+    vehicle.fuelStatus?.secondaryEngineRange,
+  ].find(
+    (range) =>
+      range?.engineType !== "ELECTRIC" &&
+      range?.currentFuelLevelInPercent !== undefined,
+  )?.currentFuelLevelInPercent;
+  return level === undefined ? undefined : clampPercent(level);
+}
+
+export interface FuelValues {
+  level: number | undefined;
+  low: boolean | undefined;
+}
+
+export function fuelValues(vehicle: Vehicle, lowThreshold: number): FuelValues {
+  const level = fuelLevel(vehicle);
+  return {
+    level,
+    low: level === undefined ? undefined : level < lowThreshold,
+  };
+}
+
 export interface BatteryValues {
   level: number | undefined;
   charging: boolean | undefined;
@@ -180,6 +206,7 @@ export interface BodyValues {
   bonnetOpen: boolean | undefined;
   sunroofOpen: boolean | undefined;
   locked: boolean | undefined;
+  lightsOn: boolean | undefined;
 }
 
 export function bodyValues(vehicle: Vehicle): BodyValues {
@@ -192,7 +219,15 @@ export function bodyValues(vehicle: Vehicle): BodyValues {
     bonnetOpen: isOpen(detail?.bonnet),
     sunroofOpen: isOpen(detail?.sunroof),
     locked: lockState(vehicle),
+    lightsOn: onOff(overall?.lights),
   };
+}
+
+function onOff(value: string | undefined): boolean | undefined {
+  if (value === "ON") {
+    return true;
+  }
+  return value === "OFF" ? false : undefined;
 }
 
 function lockState(vehicle: Vehicle): boolean | undefined {

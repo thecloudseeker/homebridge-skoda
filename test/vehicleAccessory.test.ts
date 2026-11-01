@@ -69,8 +69,16 @@ function setup(responses: Response[], settings = settingsFor()) {
     "Enyaq",
     hap.uuid.generate(TEST_VIN),
   ) as unknown as PlatformAccessory;
-  new VehicleAccessory({ hap, accessory, controller, settings, log });
-  return { accessory, controller, fetch, log };
+  const onServicesChanged = vi.fn();
+  new VehicleAccessory({
+    hap,
+    accessory,
+    controller,
+    settings,
+    log,
+    onServicesChanged,
+  });
+  return { accessory, controller, fetch, log, onServicesChanged };
 }
 
 const value = (
@@ -188,6 +196,34 @@ describe("VehicleAccessory", () => {
     controller.stop();
   });
 
+  it("adds the optional fuel level and lights sensors", async () => {
+    const lightsOn = loadFixture("combustion");
+    lightsOn.vehicle.status!.overall.lights = "ON";
+    const { accessory, controller } = setup(
+      [mockResponse({ body: lightsOn })],
+      settingsFor({ features: { fuelLevelSensor: true, lights: true } }),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(
+      value(
+        accessory,
+        Service.HumiditySensor,
+        "fuel-level",
+        Characteristic.CurrentRelativeHumidity,
+      ),
+    ).toBe(65);
+    expect(
+      value(
+        accessory,
+        Service.ContactSensor,
+        "lights",
+        Characteristic.ContactSensorState,
+      ),
+    ).toBe(Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
+    controller.stop();
+  });
+
   it("honours feature toggles", async () => {
     const { accessory, controller } = setup(
       [],
@@ -226,6 +262,23 @@ describe("VehicleAccessory", () => {
     expect(withPin.accessory.services.map((s) => s.subtype)).not.toContain(
       "battery",
     );
+    // A combustion vehicle shows its fuel level as a battery that cannot be charged.
+    expect(
+      value(
+        withPin.accessory,
+        Service.Battery,
+        "fuel",
+        Characteristic.BatteryLevel,
+      ),
+    ).toBe(65);
+    expect(
+      value(
+        withPin.accessory,
+        Service.Battery,
+        "fuel",
+        Characteristic.ChargingState,
+      ),
+    ).toBe(Characteristic.ChargingState.NOT_CHARGEABLE);
     withPin.controller.stop();
 
     const withoutPin = setup(
@@ -259,6 +312,73 @@ describe("VehicleAccessory", () => {
         Characteristic.StatusFault,
       ),
     ).toBe(Characteristic.StatusFault.GENERAL_FAULT);
+    controller.stop();
+  });
+
+  it("removes a control only after two updates without its operations", async () => {
+    const withoutCharging = () => {
+      const body = loadFixture("enyaq");
+      body.vehicle.operations = body.vehicle.operations!.filter(
+        (o) => o.name !== "startCharging" && o.name !== "stopCharging",
+      );
+      return mockResponse({ body });
+    };
+    const { accessory, controller, onServicesChanged } = setup([
+      mockResponse({ body: loadFixture("enyaq") }),
+      withoutCharging(),
+      withoutCharging(),
+    ]);
+    const charging = () => accessory.getServiceById(Service.Outlet, "charging");
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(charging()).toBeDefined();
+    expect(onServicesChanged).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(charging()).toBeDefined();
+    expect(onServicesChanged).toHaveBeenCalledOnce();
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(charging()).toBeUndefined();
+    expect(accessory.getServiceById(Service.Battery, "battery")).toBeDefined();
+    expect(onServicesChanged).toHaveBeenCalledTimes(2);
+    controller.stop();
+  });
+
+  it("keeps a control when a single update leaves out its operations", async () => {
+    const withoutCharging = loadFixture("enyaq");
+    withoutCharging.vehicle.operations = [];
+    const { accessory, controller } = setup([
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({ body: withoutCharging }),
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({ body: withoutCharging }),
+    ]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(3 * 5 * 60_000);
+    expect(accessory.getServiceById(Service.Outlet, "charging")).toBeDefined();
+    controller.stop();
+  });
+
+  it("removes a control the vehicle rejects as unsupported", async () => {
+    const { accessory, controller } = setup([
+      mockResponse({ body: loadFixture("enyaq") }),
+      mockResponse({
+        status: 422,
+        body: problem(422, "operation-not-supported"),
+      }),
+    ]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const on = accessory
+      .getServiceById(Service.Outlet, "charging")!
+      .getCharacteristic(Characteristic.On);
+    await expect(on.handleSetRequest(false)).rejects.toBe(-70402);
+    await vi.advanceTimersByTimeAsync(2 * 5 * 60_000);
+    expect(
+      accessory.getServiceById(Service.Outlet, "charging"),
+    ).toBeUndefined();
     controller.stop();
   });
 

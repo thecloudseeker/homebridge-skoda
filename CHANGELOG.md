@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- **Commands cost one request.** HomeKit keeps the expected state until a regular update carries the vehicle's new report of that part, at most 15 minutes, instead of an extra refresh after every command. With the default polling interval, that leaves 8 instead of about 4 commands per hour. `commandRefreshDelaySeconds` now defaults to `0` (no refresh); set it to 15–600 to keep the old behaviour. If you set it explicitly, nothing changes for you.
+- **Controls follow the vehicle more carefully.** A control is removed only when two updates report its operation as unsupported, so a single odd response no longer costs you its room and automations in the Home app. A command the vehicle rejects as unsupported (`operation-not-supported`) removes its control as well. Disabled functions (`operation-disabled`) keep their control.
+- **Fixed:** services added to or removed from a vehicle that was already in HomeKit were only saved to Homebridge's accessory cache on a clean shutdown. They are now saved right away.
+- **Fixed:** a request the vehicle declined (`429 vehicle-not-accepting-requests`) was not counted against the request budget. The API counts it.
+- **Fuel level** for petrol, diesel, CNG and LPG vehicles, as a battery "Fuel" that cannot be charged, with low battery below `lowBatteryThreshold`. It is on by default, so existing combustion vehicles get the new service after the update. An optional humidity sensor "Fuel Level" mirrors it for automations, also for plug-in hybrids (`features.fuelLevelSensor`).
+- **Lights** as an optional contact sensor, open while the lights are on (`features.lights`).
+- The log shows at startup how many requests per hour polling uses and how many are left for commands.
+
 ## 0.1.3
 
 - The author link on npm points to [eikedreier.com](https://eikedreier.com/).

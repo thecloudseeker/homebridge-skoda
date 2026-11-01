@@ -30,19 +30,31 @@ export class ChargingBinding extends ServiceBinding {
           await this.command(
             "Start charging",
             (client) => client.startCharging(),
-            (vehicle) => {
-              patchChargingStatus(vehicle, { state: "CHARGING" });
+            {
+              operations: ["startCharging"],
+              optimistic: {
+                part: "charging",
+                apply: (vehicle) => {
+                  patchChargingStatus(vehicle, { state: "CHARGING" });
+                },
+              },
             },
           );
         } else {
           await this.command(
             "Stop charging",
             (client) => client.stopCharging(),
-            (vehicle) => {
-              patchChargingStatus(vehicle, {
-                state: "READY_FOR_CHARGING",
-                chargePowerInKw: 0,
-              });
+            {
+              operations: ["stopCharging"],
+              optimistic: {
+                part: "charging",
+                apply: (vehicle) => {
+                  patchChargingStatus(vehicle, {
+                    state: "READY_FOR_CHARGING",
+                    chargePowerInKw: 0,
+                  });
+                },
+              },
             },
           );
         }
@@ -73,12 +85,18 @@ export class ChargingLimitBinding extends ServiceBinding {
       this.command(
         `Set charging limit to ${percent} %`,
         (client) => client.setChargingLimit(percent),
-        (vehicle) => {
-          vehicle.charging ??= { isVehicleInSavedLocation: false };
-          vehicle.charging.settings = {
-            ...vehicle.charging.settings,
-            targetStateOfChargeInPercent: percent,
-          };
+        {
+          operations: ["setChargingLimit"],
+          optimistic: {
+            part: "charging",
+            apply: (vehicle) => {
+              vehicle.charging ??= { isVehicleInSavedLocation: false };
+              vehicle.charging.settings = {
+                ...vehicle.charging.settings,
+                targetStateOfChargeInPercent: percent,
+              };
+            },
+          },
         },
       ).catch(() => {
         // Already logged and reverted.

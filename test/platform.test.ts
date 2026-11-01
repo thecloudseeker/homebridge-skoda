@@ -25,10 +25,12 @@ function fakeApi() {
     on: (event: string, handler: () => void) => handlers.set(event, handler),
     registerPlatformAccessories: vi.fn(),
     unregisterPlatformAccessories: vi.fn(),
+    updatePlatformAccessories: vi.fn(),
   };
   return {
     api: api as unknown as API,
     register: api.registerPlatformAccessories,
+    update: api.updatePlatformAccessories,
     launch: () => handlers.get("didFinishLaunching")?.(),
     shutdown: () => handlers.get("shutdown")?.(),
   };
@@ -67,13 +69,15 @@ describe("SkodaPlatform", () => {
         Promise.resolve(mockResponse({ body: loadFixture("gasoline-live") })),
       ),
     );
-    const { api, register, launch, shutdown } = fakeApi();
+    const { api, register, update, launch, shutdown } = fakeApi();
     new SkodaPlatform(fakeLog(), config, api);
     launch();
     expect(register).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(0);
     expect(register).toHaveBeenCalledOnce();
+    // Registering saves the new services; no separate cache update is needed.
+    expect(update).not.toHaveBeenCalled();
     const [accessory] = register.mock.calls[0]![2] as PlatformAccessory[];
     const names = accessory!.services
       .filter((service) => service.subtype)
@@ -82,6 +86,7 @@ describe("SkodaPlatform", () => {
           service.getCharacteristic(hap.Characteristic.ConfiguredName).value,
       );
     expect(names).toEqual([
+      "Fuel",
       "Doors",
       "Windows",
       "Trunk",
@@ -126,7 +131,7 @@ describe("SkodaPlatform", () => {
         Promise.resolve(mockResponse({ body: loadFixture("gasoline-live") })),
       ),
     );
-    const { api, register, launch, shutdown } = fakeApi();
+    const { api, register, update, launch, shutdown } = fakeApi();
     const platform = new SkodaPlatform(fakeLog(), config, api);
     const uuid = hap.uuid.generate(
       `@thecloudseeker/homebridge-skoda:${TEST_VIN}`,
@@ -138,6 +143,8 @@ describe("SkodaPlatform", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(register).not.toHaveBeenCalled();
     expect(api.unregisterPlatformAccessories).not.toHaveBeenCalled();
+    // The services added to the cached vehicle are saved to the accessory cache.
+    expect(update).toHaveBeenCalledOnce();
     shutdown();
   });
 });

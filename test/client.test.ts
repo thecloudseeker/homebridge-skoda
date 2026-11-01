@@ -172,6 +172,8 @@ describe("SkodaApiClient error handling", () => {
       isRateLimited: false,
     });
     expect(budget.canSpend("command")).toBe(true);
+    // Unlike a rate-limit 429, the declined request counts against the quota.
+    expect(budget.remaining()).toBe(19);
   });
 
   it("counts 5xx responses against the budget", async () => {

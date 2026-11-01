@@ -75,22 +75,23 @@
               "minimum": 4,
               "maximum": 1440,
               "placeholder": 5,
-              "description": "Minimum 4: 20 requests per hour minus 4 kept free for commands and their follow-up refresh."
+              "description": "Minimum 4: 20 requests per hour minus 4 kept free for commands."
             },
             "commandRefreshDelaySeconds": {
               "title": "Refresh after command (seconds)",
               "type": "integer",
-              "minimum": 15,
+              "minimum": 0,
               "maximum": 600,
-              "placeholder": 90,
-              "description": "Delay before the single follow-up refresh after a command."
+              "placeholder": 0,
+              "description": "0 (default): no extra request, the next regular update confirms a command. Otherwise the delay (15-600) before one extra refresh after a command."
             },
             "lowBatteryThreshold": {
               "title": "Low battery threshold (%)",
               "type": "integer",
               "minimum": 0,
               "maximum": 100,
-              "placeholder": 20
+              "placeholder": 20,
+              "description": "Battery or fuel level below which HomeKit reports low battery."
             },
             "climateTemperature": {
               "title": "Default cabin temperature (°C)",
@@ -124,6 +125,16 @@
                 },
                 "stateOfChargeSensor": {
                   "title": "State of charge as humidity sensor (for automations)",
+                  "type": "boolean",
+                  "default": false
+                },
+                "fuelLevel": {
+                  "title": "Fuel level as battery (combustion vehicles)",
+                  "type": "boolean",
+                  "default": true
+                },
+                "fuelLevelSensor": {
+                  "title": "Fuel level as humidity sensor (for automations)",
                   "type": "boolean",
                   "default": false
                 },
@@ -186,6 +197,11 @@
                   "title": "Locked (read-only)",
                   "type": "boolean",
                   "default": true
+                },
+                "lights": {
+                  "title": "Lights (open = on)",
+                  "type": "boolean",
+                  "default": false
                 }
               }
             }
@@ -267,6 +283,8 @@
               "items": [
                 "vehicles[].features.battery",
                 "vehicles[].features.stateOfChargeSensor",
+                "vehicles[].features.fuelLevel",
+                "vehicles[].features.fuelLevelSensor",
                 "vehicles[].features.charging",
                 "vehicles[].features.chargingLimit",
                 "vehicles[].features.climate",
@@ -278,7 +296,8 @@
                 "vehicles[].features.trunk",
                 "vehicles[].features.bonnet",
                 "vehicles[].features.sunroof",
-                "vehicles[].features.lock"
+                "vehicles[].features.lock",
+                "vehicles[].features.lights"
               ]
             }
           ]

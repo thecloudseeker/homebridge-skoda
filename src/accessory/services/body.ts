@@ -15,13 +15,13 @@ import {
 
 type BodyFeature = Extract<
   keyof FeatureToggles,
-  "doors" | "windows" | "trunk" | "bonnet" | "sunroof" | "lock"
+  "doors" | "windows" | "trunk" | "bonnet" | "sunroof" | "lock" | "lights"
 >;
 
 interface ContactDefinition {
   feature: BodyFeature;
   displayName: string;
-  /** `true` means "contact not detected" (open, or unlocked for the lock sensor). */
+  /** `true` means "contact not detected": open, unlocked for the lock sensor, on for the lights. */
   isOpen: (values: BodyValues) => boolean | undefined;
 }
 
@@ -37,6 +37,7 @@ const CONTACTS: readonly ContactDefinition[] = [
     displayName: "Locked",
     isOpen: (v) => (v.locked === undefined ? undefined : !v.locked),
   },
+  { feature: "lights", displayName: "Lights", isOpen: (v) => v.lightsOn },
 ];
 
 export class ContactBinding extends ServiceBinding {

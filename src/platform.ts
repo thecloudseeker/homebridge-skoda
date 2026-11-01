@@ -6,7 +6,7 @@ import type {
   PlatformConfig,
 } from "homebridge";
 import { SkodaApiClient } from "./api/client.js";
-import { RateBudget } from "./api/rateBudget.js";
+import { DEFAULT_RATE_LIMIT, RateBudget } from "./api/rateBudget.js";
 import { parseVehicleConfig, type VehicleSettings } from "./config.js";
 import { VehicleAccessory } from "./accessory/vehicleAccessory.js";
 import { PLATFORM_NAME, PLUGIN_NAME, PLUGIN_VERSION } from "./settings.js";
@@ -130,12 +130,19 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     });
     this.controllers.push(controller);
 
+    // A new vehicle is saved with its services when it is registered below.
+    let registered = cached !== undefined;
     new VehicleAccessory({
       hap: this.api.hap,
       accessory,
       controller,
       settings,
       log,
+      onServicesChanged: () => {
+        if (registered) {
+          this.api.updatePlatformAccessories([accessory]);
+        }
+      },
     });
 
     if (!cached) {
@@ -147,6 +154,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
           return;
         }
         unsubscribe();
+        registered = true;
         this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
           accessory,
         ]);
@@ -154,8 +162,10 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
       });
     }
 
+    const pollsPerHour = Math.ceil(60 / settings.pollingIntervalMinutes);
     log.info(
-      `Polling every ${settings.pollingIntervalMinutes} min${settings.commandToken ? ", separate command key" : ""}`,
+      `Polling every ${settings.pollingIntervalMinutes} min (${pollsPerHour} of ${DEFAULT_RATE_LIMIT} requests per hour, ` +
+        `${Math.max(0, DEFAULT_RATE_LIMIT - pollsPerHour)} left for commands)${settings.commandToken ? ", separate command key" : ""}`,
     );
     controller.start();
   }

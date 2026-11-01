@@ -30,7 +30,7 @@ describe("parseVehicleConfig", () => {
       pollingIntervalMinutes: 5,
       lowBatteryThreshold: 20,
       climateTemperature: 21,
-      commandRefreshDelaySeconds: 90,
+      commandRefreshDelaySeconds: 0,
       home: undefined,
     });
     // Without S-PIN and home coordinates these features cannot work.
@@ -68,6 +68,17 @@ describe("parseVehicleConfig", () => {
     expect(settings.pollingIntervalMinutes).toBe(4);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("minimum of 4");
+  });
+
+  it("turns the follow-up refresh off with 0 and clamps other values to 15–600 s", () => {
+    const delay = (commandRefreshDelaySeconds: number) =>
+      parse({ ...base, commandRefreshDelaySeconds }).settings
+        .commandRefreshDelaySeconds;
+    expect(delay(0)).toBe(0);
+    expect(delay(-5)).toBe(0);
+    expect(delay(5)).toBe(15);
+    expect(delay(90)).toBe(90);
+    expect(delay(3600)).toBe(600);
   });
 
   it("respects feature toggles", () => {

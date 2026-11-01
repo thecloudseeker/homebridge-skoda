@@ -5,6 +5,8 @@ import {
   bodyValues,
   chargingLimit,
   climateValues,
+  fuelLevel,
+  fuelValues,
   isActiveVentilationOn,
   isAtHome,
   isAuxiliaryHeatingOn,
@@ -199,6 +201,7 @@ describe("body mapping", () => {
       bonnetOpen: false,
       sunroofOpen: undefined,
       locked: true,
+      lightsOn: false,
     });
   });
 
@@ -210,7 +213,16 @@ describe("body mapping", () => {
       bonnetOpen: undefined,
       sunroofOpen: true,
       locked: false,
+      lightsOn: false,
     });
+  });
+
+  it("maps the lights", () => {
+    const vehicle = structuredClone(enyaq.vehicle);
+    vehicle.status!.overall.lights = "ON";
+    expect(bodyValues(vehicle).lightsOn).toBe(true);
+    vehicle.status!.overall.lights = "UNKNOWN";
+    expect(bodyValues(vehicle).lightsOn).toBeUndefined();
   });
 
   it("falls back to `locked` when reliableLockStatus is unknown", () => {
@@ -218,6 +230,36 @@ describe("body mapping", () => {
     vehicle.status!.overall.reliableLockStatus = "UNKNOWN";
     vehicle.status!.overall.locked = "NO";
     expect(bodyValues(vehicle).locked).toBe(false);
+  });
+});
+
+describe("fuel mapping", () => {
+  it("reads the combustion fuel level and flags it low below the threshold", () => {
+    expect(fuelLevel(combustion.vehicle)).toBe(65);
+    expect(fuelValues(combustion.vehicle, 20)).toEqual({
+      level: 65,
+      low: false,
+    });
+    expect(fuelValues(combustion.vehicle, 70)).toEqual({
+      level: 65,
+      low: true,
+    });
+  });
+
+  it("ignores the electric range of a hybrid and a missing fuel level", () => {
+    const vehicle: Vehicle = {
+      fuelStatus: {
+        carType: "HYBRID",
+        primaryEngineRange: { engineType: "ELECTRIC", currentSoCInPercent: 40 },
+        secondaryEngineRange: {
+          engineType: "GASOLINE",
+          currentFuelLevelInPercent: 55.4,
+        },
+      },
+    };
+    expect(fuelLevel(vehicle)).toBe(55);
+    expect(fuelLevel(enyaq.vehicle)).toBeUndefined();
+    expect(fuelLevel({ fuelStatus: { carType: "GASOLINE" } })).toBeUndefined();
   });
 });
 
@@ -233,6 +275,9 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "presence")).toBe(true);
     expect(featureSupport(snapshot, "sunroof")).toBe(false);
     expect(featureSupport(snapshot, "lock")).toBe(true);
+    expect(featureSupport(snapshot, "lights")).toBe(true);
+    expect(featureSupport(snapshot, "fuelLevel")).toBe(false);
+    expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(false);
   });
 
   it("detects what a combustion vehicle offers", () => {
@@ -242,6 +287,24 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "auxiliaryHeating")).toBe(true);
     expect(featureSupport(snapshot, "windows")).toBe(false);
     expect(featureSupport(snapshot, "sunroof")).toBe(true);
+    expect(featureSupport(snapshot, "fuelLevel")).toBe(true);
+    expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(true);
+  });
+
+  it("shows the fuel level of a hybrid only as a sensor", () => {
+    const hybrid = structuredClone(enyaq);
+    hybrid.vehicle.fuelStatus = {
+      carType: "HYBRID",
+      primaryEngineRange: {
+        engineType: "GASOLINE",
+        currentFuelLevelInPercent: 50,
+      },
+    };
+    hybrid.errors = [];
+    const snapshot = snapshotOf(hybrid);
+    expect(featureSupport(snapshot, "battery")).toBe(true);
+    expect(featureSupport(snapshot, "fuelLevel")).toBe(false);
+    expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(true);
   });
 
   it("is unknown while parts are unavailable", () => {
@@ -256,6 +319,7 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "battery")).toBeUndefined();
     expect(featureSupport(snapshot, "charging")).toBeUndefined();
     expect(featureSupport(snapshot, "doors")).toBeUndefined();
+    expect(featureSupport(snapshot, "fuelLevel")).toBeUndefined();
   });
 });
 
@@ -281,11 +345,13 @@ describe("anonymized live response of a gasoline vehicle", () => {
   const live = loadFixture("gasoline-live");
   const snapshot = snapshotOf(live);
 
-  it("offers only body sensors, presence and active ventilation", () => {
+  it("offers fuel level, body sensors, presence and active ventilation", () => {
     const supported = (
       [
         "battery",
         "stateOfChargeSensor",
+        "fuelLevel",
+        "fuelLevelSensor",
         "charging",
         "chargingLimit",
         "climate",
@@ -298,9 +364,12 @@ describe("anonymized live response of a gasoline vehicle", () => {
         "bonnet",
         "sunroof",
         "lock",
+        "lights",
       ] as const
     ).filter((feature) => featureSupport(snapshot, feature));
     expect(supported).toEqual([
+      "fuelLevel",
+      "fuelLevelSensor",
       "activeVentilation",
       "presence",
       "doors",
@@ -309,6 +378,7 @@ describe("anonymized live response of a gasoline vehicle", () => {
       "bonnet",
       "sunroof",
       "lock",
+      "lights",
     ]);
   });
 
@@ -328,6 +398,7 @@ describe("anonymized live response of a gasoline vehicle", () => {
       bonnetOpen: false,
       sunroofOpen: false,
       locked: true,
+      lightsOn: false,
     });
     expect(isActiveVentilationOn(live.vehicle)).toBe(false);
   });

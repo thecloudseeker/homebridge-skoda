@@ -163,16 +163,18 @@ export class SkodaApiClient {
     const retryAfterSeconds = parseRetryAfter(
       response.headers.get("Retry-After"),
     );
+    const problem = await readProblem(response);
+    const problemType = parseProblemType(problem?.type);
     if (
       response.status === 401 ||
       response.status === 403 ||
-      response.status === 429
+      (response.status === 429 &&
+        problemType !== "vehicle-not-accepting-requests")
     ) {
-      // Documented: these responses do not consume quota.
+      // Documented: 401 and 403 do not consume quota, and a rejected 429 does not prolong the
+      // window. Every other response counts, including one the vehicle declined.
       budget.refund();
     }
-    const problem = await readProblem(response);
-    const problemType = parseProblemType(problem?.type);
     if (
       response.status === 429 &&
       problemType !== "vehicle-not-accepting-requests"

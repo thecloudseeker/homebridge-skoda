@@ -70,10 +70,16 @@ export class ClimateBinding extends ServiceBinding {
           await this.command(
             "Stop air conditioning",
             (client) => client.stopAirConditioning(),
-            (vehicle) => {
-              if (vehicle.airConditioning) {
-                vehicle.airConditioning.state = "OFF";
-              }
+            {
+              operations: ["stopAirConditioning"],
+              optimistic: {
+                part: "airConditioning",
+                apply: (vehicle) => {
+                  if (vehicle.airConditioning) {
+                    vehicle.airConditioning.state = "OFF";
+                  }
+                },
+              },
             },
           );
         }
@@ -152,13 +158,19 @@ export class ClimateBinding extends ServiceBinding {
             ? {}
             : { airConditioningWithoutExternalPower }),
         }),
-      (vehicle) => {
-        // Heating or cooling is not known until the vehicle reports back.
-        vehicle.airConditioning = {
-          ...vehicle.airConditioning,
-          state: "VENTILATION",
-          targetTemperature: { value: celsius, unit: "CELSIUS" },
-        };
+      {
+        operations: ["startAirConditioning"],
+        optimistic: {
+          part: "airConditioning",
+          apply: (vehicle) => {
+            // Heating or cooling is not known until the vehicle reports back.
+            vehicle.airConditioning = {
+              ...vehicle.airConditioning,
+              state: "VENTILATION",
+              targetTemperature: { value: celsius, unit: "CELSIUS" },
+            };
+          },
+        },
       },
     );
   }
@@ -176,6 +188,7 @@ export class ClimateBinding extends ServiceBinding {
       await this.ctx.controller.runCommand(
         "Stop air conditioning for new temperature",
         (client) => client.stopAirConditioning(),
+        { operations: ["stopAirConditioning"] },
       );
       await new Promise((resolve) =>
         setTimeout(resolve, RESTART_PAUSE_MS).unref(),
@@ -211,22 +224,34 @@ export class AuxiliaryHeatingBinding extends ServiceBinding {
                       durationInSeconds: auxiliaryHeatingDurationMinutes * 60,
                     }),
               }),
-            (vehicle) => {
-              vehicle.auxiliaryHeating = {
-                ...vehicle.auxiliaryHeating,
-                state: "HEATING_AUXILIARY",
-              };
+            {
+              operations: ["startAuxiliaryHeating"],
+              optimistic: {
+                part: "auxiliaryHeating",
+                apply: (vehicle) => {
+                  vehicle.auxiliaryHeating = {
+                    ...vehicle.auxiliaryHeating,
+                    state: "HEATING_AUXILIARY",
+                  };
+                },
+              },
             },
           );
         } else if (value !== true) {
           await this.command(
             "Stop auxiliary heating",
             (client) => client.stopAuxiliaryHeating(),
-            (vehicle) => {
-              vehicle.auxiliaryHeating = {
-                ...vehicle.auxiliaryHeating,
-                state: "OFF",
-              };
+            {
+              operations: ["stopAuxiliaryHeating"],
+              optimistic: {
+                part: "auxiliaryHeating",
+                apply: (vehicle) => {
+                  vehicle.auxiliaryHeating = {
+                    ...vehicle.auxiliaryHeating,
+                    state: "OFF",
+                  };
+                },
+              },
             },
           );
         }
@@ -262,6 +287,11 @@ export class ActiveVentilationBinding extends ServiceBinding {
             on
               ? client.startActiveVentilation()
               : client.stopActiveVentilation(),
+          {
+            operations: [
+              on ? "startActiveVentilation" : "stopActiveVentilation",
+            ],
+          },
         );
         setTimeout(() => {
           this.rerender();

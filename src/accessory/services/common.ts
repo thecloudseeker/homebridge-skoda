@@ -10,7 +10,10 @@ import type { Vehicle } from "../../api/types.js";
 import type { FeatureToggles, VehicleSettings } from "../../config.js";
 import type { Logger } from "../../util/logger.js";
 import type { VehicleSnapshot } from "../../vehicle/snapshot.js";
-import type { VehicleController } from "../../vehicle/vehicleController.js";
+import type {
+  CommandOptions,
+  VehicleController,
+} from "../../vehicle/vehicleController.js";
 
 export type HAP = API["hap"];
 export type ServiceType = WithUUID<typeof Service>;
@@ -27,6 +30,8 @@ export interface BindingContext {
   controller: VehicleController;
   settings: VehicleSettings;
   log: Logger;
+  /** Called after services were added or removed, so Homebridge can save its accessory cache. */
+  onServicesChanged?: () => void;
 }
 
 /**
@@ -50,13 +55,14 @@ export abstract class ServiceBinding {
     );
   }
 
-  /** Creates the service if needed and registers handlers once. */
-  attach(): void {
+  /** Creates the service if needed and registers handlers once. Returns whether it was added. */
+  attach(): boolean {
     if (this.service) {
-      return;
+      return false;
     }
     const { accessory, hap } = this.ctx;
     let service = accessory.getServiceById(this.serviceType, this.subtype);
+    const added = !service;
     if (!service) {
       service = accessory.addService(
         this.serviceType,
@@ -72,18 +78,22 @@ export abstract class ServiceBinding {
     }
     this.service = service;
     this.configure?.(service);
+    return added;
   }
 
-  detach(): void {
+  /** Removes the service if it exists. Returns whether it was removed. */
+  detach(): boolean {
     const service = this.ctx.accessory.getServiceById(
       this.serviceType,
       this.subtype,
     );
-    if (service) {
-      this.ctx.accessory.removeService(service);
-      this.ctx.log.info(`Removed ${this.displayName}`);
-    }
     this.service = undefined;
+    if (!service) {
+      return false;
+    }
+    this.ctx.accessory.removeService(service);
+    this.ctx.log.info(`Removed ${this.displayName}`);
+    return true;
   }
 
   update(snapshot: VehicleSnapshot | undefined, stale: boolean): void {
@@ -138,10 +148,10 @@ export abstract class ServiceBinding {
   protected async command(
     label: string,
     send: (client: SkodaApiClient) => Promise<void>,
-    optimistic?: (vehicle: Vehicle) => void,
+    options?: CommandOptions,
   ): Promise<void> {
     try {
-      await this.ctx.controller.runCommand(label, send, optimistic);
+      await this.ctx.controller.runCommand(label, send, options);
     } catch {
       setTimeout(() => {
         this.rerender();

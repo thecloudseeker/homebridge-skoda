@@ -4,7 +4,7 @@ import {
   SkodaApiError,
   SkodaNetworkError,
 } from "../api/errors.js";
-import type { Vehicle } from "../api/types.js";
+import type { OperationName, Vehicle } from "../api/types.js";
 import type { Logger } from "../util/logger.js";
 import { mergeSnapshot, type VehicleSnapshot } from "./snapshot.js";
 
@@ -17,6 +17,8 @@ const CONFIG_ERROR_RETRY_MS = HOUR;
 const STALE_AFTER_INTERVALS = 3;
 const KEY_EXPIRY_WARNING_MS = 7 * 24 * HOUR;
 const KEY_EXPIRY_WARNING_REPEAT_MS = 24 * HOUR;
+/** An optimistic state is dropped after this long, even if the vehicle never reports back. */
+const OPTIMISTIC_TTL_MS = 15 * MINUTE;
 
 export interface VehicleControllerOptions {
   pollClient: SkodaApiClient;
@@ -24,7 +26,31 @@ export interface VehicleControllerOptions {
   commandClient: SkodaApiClient;
   log: Logger;
   pollingIntervalMinutes: number;
+  /** 0 disables the follow-up refresh; the next scheduled poll confirms the command instead. */
   commandRefreshDelaySeconds: number;
+}
+
+/** Parts that carry a `carCapturedTimestamp`, which tells when the vehicle last reported them. */
+export type ReportedPart =
+  "charging" | "airConditioning" | "auxiliaryHeating" | "activeVentilation";
+
+export interface OptimisticPatch {
+  /** The part the command changes. */
+  part: ReportedPart;
+  apply: (vehicle: Vehicle) => void;
+}
+
+export interface CommandOptions {
+  /** Operations the command uses; `operation-not-supported` marks them as unsupported. */
+  operations?: readonly OperationName[];
+  /** Expected state, shown until the vehicle reports the part again. */
+  optimistic?: OptimisticPatch;
+}
+
+interface PendingPatch extends OptimisticPatch {
+  sentAt: number;
+  /** `carCapturedTimestamp` of the part when the command was sent. */
+  capturedBefore: string | undefined;
 }
 
 type Listener = (snapshot: VehicleSnapshot | undefined) => void;
@@ -44,6 +70,8 @@ export class VehicleController {
   private failures = 0;
   private lastErrorKey: string | undefined;
   private readonly keyExpiryWarnedAt = new Map<string, number>();
+  private pending: PendingPatch[] = [];
+  private readonly rejectedOperations = new Set<OperationName>();
   private stopped = true;
 
   constructor(private readonly options: VehicleControllerOptions) {
@@ -80,29 +108,48 @@ export class VehicleController {
   }
 
   /**
-   * Sends a command and schedules one follow-up refresh. On success the optional `optimistic`
-   * patch is applied to the cache right away, so HomeKit shows the expected state until the
-   * refresh confirms it. Errors are logged and rethrown for the caller to revert the UI.
+   * Sends a command. On success the optional optimistic patch is applied to the cache right away
+   * and re-applied after every poll until the vehicle reports the changed part again, because the
+   * vehicle reports new state with a delay. A follow-up refresh is only scheduled when
+   * `commandRefreshDelaySeconds` is set. Errors are logged and rethrown for the caller to revert
+   * the UI.
    */
   async runCommand(
     label: string,
     send: (client: SkodaApiClient) => Promise<void>,
-    optimistic?: (vehicle: Vehicle) => void,
+    options: CommandOptions = {},
   ): Promise<void> {
+    const { operations = [], optimistic } = options;
     try {
       await send(this.options.commandClient);
     } catch (error) {
       this.options.log.warn(`${label} failed: ${describeCommandError(error)}`);
+      if (
+        error instanceof SkodaApiError &&
+        error.problemType === "operation-not-supported" &&
+        operations.length > 0
+      ) {
+        this.rejectOperations(operations);
+      }
       throw error;
     }
     this.options.log.info(`${label}: accepted by the vehicle`);
-    if (optimistic && this.current) {
-      const patched = structuredClone(this.current);
-      optimistic(patched.vehicle);
-      this.current = patched;
-      this.emit();
+    if (optimistic) {
+      this.pending.push({
+        ...optimistic,
+        sentAt: Date.now(),
+        capturedBefore: capturedAt(this.current?.vehicle, optimistic.part),
+      });
+      if (this.current) {
+        const patched = structuredClone(this.current);
+        optimistic.apply(patched.vehicle);
+        this.current = patched;
+        this.emit();
+      }
     }
-    this.schedule(this.refreshDelayMs, "refresh");
+    if (this.refreshDelayMs > 0) {
+      this.schedule(this.refreshDelayMs, "refresh");
+    }
   }
 
   /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day per key. */
@@ -151,7 +198,9 @@ export class VehicleController {
   private async fetch(kind: "poll" | "refresh"): Promise<void> {
     try {
       const response = await this.options.pollClient.getVehicle(kind);
-      this.current = mergeSnapshot(this.current, response, Date.now());
+      this.current = this.applyLocalState(
+        mergeSnapshot(this.current, response, Date.now()),
+      );
       if (this.failures > 0 || this.lastErrorKey) {
         this.options.log.info("Connection to the MyŠkoda API restored");
       }
@@ -219,6 +268,52 @@ export class VehicleController {
     this.schedule(this.backoffMs(), "poll");
   }
 
+  /**
+   * Re-applies optimistic patches the vehicle has not confirmed yet, and hides operations the
+   * vehicle rejected as unsupported.
+   */
+  private applyLocalState(snapshot: VehicleSnapshot): VehicleSnapshot {
+    const now = snapshot.fetchedAt;
+    this.pending = this.pending.filter(
+      (patch) =>
+        now - patch.sentAt < OPTIMISTIC_TTL_MS &&
+        !reportedSince(snapshot.vehicle, patch),
+    );
+    if (this.pending.length === 0 && this.rejectedOperations.size === 0) {
+      return snapshot;
+    }
+    const patched = structuredClone(snapshot);
+    for (const patch of this.pending) {
+      patch.apply(patched.vehicle);
+    }
+    this.removeRejectedOperations(patched.vehicle);
+    return patched;
+  }
+
+  /** Remembered until restart: the vehicle lacks the capability, so retrying does not help. */
+  private rejectOperations(operations: readonly OperationName[]): void {
+    for (const name of operations) {
+      this.rejectedOperations.add(name);
+    }
+    this.options.log.warn(
+      `The vehicle does not support ${operations.join(", ")}; the control will be removed`,
+    );
+    if (this.current) {
+      const patched = structuredClone(this.current);
+      this.removeRejectedOperations(patched.vehicle);
+      this.current = patched;
+      this.emit();
+    }
+  }
+
+  private removeRejectedOperations(vehicle: Vehicle): void {
+    if (vehicle.operations && this.rejectedOperations.size > 0) {
+      vehicle.operations = vehicle.operations.filter(
+        (operation) => !this.rejectedOperations.has(operation.name),
+      );
+    }
+  }
+
   /** Exponential backoff starting at the polling interval, capped at 30 minutes (or the interval if longer). */
   private backoffMs(): number {
     const exponential = this.intervalMs * 2 ** Math.max(0, this.failures - 1);
@@ -257,6 +352,23 @@ export class VehicleController {
       }
     }
   }
+}
+
+function capturedAt(
+  vehicle: Vehicle | undefined,
+  part: ReportedPart,
+): string | undefined {
+  return vehicle?.[part]?.carCapturedTimestamp;
+}
+
+/** The vehicle has reported the part since the command: a new timestamp, captured after sending. */
+function reportedSince(vehicle: Vehicle, patch: PendingPatch): boolean {
+  const captured = capturedAt(vehicle, patch.part);
+  if (captured === undefined || captured === patch.capturedBefore) {
+    return false;
+  }
+  const capturedMs = Date.parse(captured);
+  return Number.isFinite(capturedMs) && capturedMs > patch.sentAt;
 }
 
 function describeConfigError(error: SkodaApiError): string {

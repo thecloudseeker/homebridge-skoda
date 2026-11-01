@@ -1,4 +1,5 @@
 import type { FeatureToggles } from "../config.js";
+import { fuelLevel } from "./mapping.js";
 import type {
   OperationName,
   Vehicle,
@@ -101,6 +102,15 @@ function statusFieldSupport(
   return value !== undefined && value !== "UNSUPPORTED";
 }
 
+/** `true` once a combustion fuel level is reported; a missing field alone is unknown. */
+function fuelLevelSupport(snapshot: VehicleSnapshot): boolean | undefined {
+  const support = partSupport(snapshot, "fuelStatus");
+  if (support !== true) {
+    return support;
+  }
+  return fuelLevel(snapshot.vehicle) === undefined ? undefined : true;
+}
+
 /**
  * Whether the vehicle supports a feature. `undefined` means "cannot tell right now"; callers keep
  * whatever they had, so a transient outage never removes services from HomeKit.
@@ -113,6 +123,16 @@ export function featureSupport(
     case "battery":
     case "stateOfChargeSensor":
       return partSupport(snapshot, "charging");
+    case "fuelLevel": {
+      // Vehicles with a high-voltage battery show it in the battery service instead.
+      const charging = partSupport(snapshot, "charging");
+      if (charging !== false) {
+        return charging === true ? false : undefined;
+      }
+      return fuelLevelSupport(snapshot);
+    }
+    case "fuelLevelSensor":
+      return fuelLevelSupport(snapshot);
     case "charging":
       return operationSupport(snapshot, "startCharging", "stopCharging");
     case "chargingLimit":
@@ -147,6 +167,8 @@ export function featureSupport(
       return statusFieldSupport(snapshot, (v) => v.status?.detail.bonnet);
     case "sunroof":
       return statusFieldSupport(snapshot, (v) => v.status?.detail.sunroof);
+    case "lights":
+      return statusFieldSupport(snapshot, (v) => v.status?.overall.lights);
     case "lock":
       return statusFieldSupport(
         snapshot,

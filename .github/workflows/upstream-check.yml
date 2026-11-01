@@ -1,0 +1,45 @@
+name: Upstream check
+
+# Monthly reminder to check the API changelog, skoda-public-api and the Home Assistant integration.
+# See MAINTAINING.md.
+
+on:
+  schedule:
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open a reminder issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          title="Upstream check $(date -u +%Y-%m)"
+          if gh issue list --state open --search "in:title \"Upstream check\"" --json number --jq '.[].number' | grep -q .; then
+            echo "An upstream check issue is still open."
+            exit 0
+          fi
+
+          library_release=$(gh release view -R mobility-lab-vsb/skoda-public-api --json tagName --jq .tagName || echo unknown)
+          library_prs=$(gh pr list -R mobility-lab-vsb/skoda-public-api --state open --json number,title --jq '.[] | "  - #\(.number) \(.title)"' || true)
+          ha_requirement=$(gh api 'repos/home-assistant/core/contents/homeassistant/components/skoda/manifest.json?ref=dev' --jq .content | base64 -d | jq -r '.requirements | join(", ")' || echo unknown)
+          ha_commits=$(gh api 'repos/home-assistant/core/commits?path=homeassistant/components/skoda&sha=dev&per_page=5' --jq '.[] | "  - \(.commit.committer.date[0:10]) \(.commit.message | split("\n")[0])"' || true)
+
+          body=$(cat <<EOF
+          Monthly upstream check, see [MAINTAINING.md](../blob/main/MAINTAINING.md).
+
+          - [ ] MyŠkoda Public API [changelog](https://public.api.connect.skoda-auto.cz/docs/changelog) and [OpenAPI document](https://public.api.connect.skoda-auto.cz/v3/api-docs)
+          - [ ] skoda-public-api: latest release ${library_release}, open PRs:
+          ${library_prs:-  - none}
+          - [ ] Home Assistant \`skoda\` (dev) requires ${ha_requirement}, recent changes:
+          ${ha_commits:-  - none}
+          - [ ] Update "Last check" in MAINTAINING.md
+          EOF
+          )
+          gh issue create --title "$title" --body "$body"

@@ -17,12 +17,17 @@ air conditioning, auxiliary heating, "at home" detection, doors, windows and loc
 ## Features
 
 Each vehicle becomes one HomeKit accessory. A service is only created if it is enabled in the
-config **and** the vehicle reports that it supports it.
+config **and** the vehicle reports that it supports it. For the controls, that is the list of
+remote operations the API reports for the vehicle. If two updates report a control as no longer
+supported, or the vehicle rejects a command as unsupported, the service is removed. A single odd
+update or an unreachable API never removes services.
 
 | HomeKit service                                                  | Shows                                                          | Controls                                       | Default |
 | ---------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- | ------- |
 | Battery                                                          | State of charge, charging state, low battery below a threshold | –                                              | on      |
 | Humidity sensor "State of Charge"                                | State of charge in %, so you can build automations on it       | –                                              | off     |
+| Battery "Fuel"                                                   | Fuel level, low below the threshold (petrol, diesel, CNG, LPG) | –                                              | on      |
+| Humidity sensor "Fuel Level"                                     | Fuel level in %, so you can build automations on it            | –                                              | off     |
 | Outlet "Charging"                                                | _On_ = charging, _Outlet In Use_ = cable plugged in            | Start / stop charging                          | on      |
 | Lightbulb "Charge Limit"                                         | Brightness = charging limit (50–100 % in steps of 10)          | Set charging limit                             | on      |
 | Heater Cooler "Climate"                                          | Active, heating / cooling, target temperature                  | Start / stop air conditioning, set temperature | on      |
@@ -31,6 +36,9 @@ config **and** the vehicle reports that it supports it.
 | Occupancy sensor "Home"                                          | Parked within a radius around your home                        | –                                              | on      |
 | Contact sensors "Doors", "Windows", "Trunk", "Bonnet", "Sunroof" | Open / closed                                                  | –                                              | on      |
 | Contact sensor "Locked"                                          | Closed = locked, open = unlocked                               | – (the API cannot lock or unlock)              | on      |
+| Contact sensor "Lights"                                          | Open = lights on                                               | –                                              | off     |
+
+HomeKit has no services for range or mileage, so the plugin does not show them.
 
 What the API does **not** offer, and therefore this plugin neither: locking and unlocking, honking
 and flashing, waking the vehicle up, cabin temperature, and push updates.
@@ -52,8 +60,15 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
   therefore always shows the reported state: after you switch it on in HomeKit it returns to _off_
   once the vehicle has accepted the start (see the log), and it shows _on_ when the ventilation
   was started in the app.
+- **Fuel.** HomeKit has no fuel service, so combustion vehicles show their fuel level as a battery
+  that cannot be charged. Low battery uses `lowBatteryThreshold`. Plug-in hybrids keep the
+  high-voltage battery in the battery service; their fuel level is available as the "Fuel Level"
+  humidity sensor.
 - **Lock.** Exposed as a read-only contact sensor rather than a lock, because the API cannot
   lock or unlock. A lock tile in the Home app would suggest otherwise.
+- **Expected state after a command.** HomeKit shows the expected state right away and keeps it
+  until the vehicle reports that part again, at most 15 minutes. If the vehicle reports something
+  else, for example because charging could not start, HomeKit shows what the vehicle reports.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors
   show a fault (_StatusFault_). Battery, outlet, switches and the heater cooler have no fault
   indicator in HomeKit.
@@ -117,22 +132,22 @@ The easiest way is the Homebridge UI. In `config.json` it looks like this:
 }
 ```
 
-| Option                                | Default                 | Description                                                                                                                                                                             |
-| ------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                                | `Škoda <last 4 of VIN>` | Accessory name in HomeKit                                                                                                                                                               |
-| `vin`                                 | –                       | Vehicle identification number (required)                                                                                                                                                |
-| `token`                               | –                       | API key (required)                                                                                                                                                                      |
-| `commandToken`                        | –                       | Separate API key for commands                                                                                                                                                           |
-| `spin`                                | –                       | S-PIN, only needed for the auxiliary heating                                                                                                                                            |
-| `home.lat`, `home.lon`                | –                       | Home coordinates for the "Home" sensor                                                                                                                                                  |
-| `home.radiusMeters`                   | `150`                   | Radius around home, at least 10 m                                                                                                                                                       |
-| `pollingIntervalMinutes`              | `5`                     | Polling interval, at least 4 (see below)                                                                                                                                                |
-| `commandRefreshDelaySeconds`          | `90`                    | Delay before the refresh after a command (15–600)                                                                                                                                       |
-| `lowBatteryThreshold`                 | `20`                    | Low battery below this state of charge (%)                                                                                                                                              |
-| `climateTemperature`                  | `21`                    | Cabin temperature (°C) until the vehicle reports one                                                                                                                                    |
-| `airConditioningWithoutExternalPower` | –                       | Allow air conditioning on battery; unset keeps the vehicle setting                                                                                                                      |
-| `auxiliaryHeatingDurationMinutes`     | –                       | Auxiliary heating run time; unset keeps the vehicle setting                                                                                                                             |
-| `features.*`                          | see table above         | `battery`, `stateOfChargeSensor`, `charging`, `chargingLimit`, `climate`, `auxiliaryHeating`, `activeVentilation`, `presence`, `doors`, `windows`, `trunk`, `bonnet`, `sunroof`, `lock` |
+| Option                                | Default                 | Description                                                                                                                                                                                                                       |
+| ------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                | `Škoda <last 4 of VIN>` | Accessory name in HomeKit                                                                                                                                                                                                         |
+| `vin`                                 | –                       | Vehicle identification number (required)                                                                                                                                                                                          |
+| `token`                               | –                       | API key (required)                                                                                                                                                                                                                |
+| `commandToken`                        | –                       | Separate API key for commands                                                                                                                                                                                                     |
+| `spin`                                | –                       | S-PIN, only needed for the auxiliary heating                                                                                                                                                                                      |
+| `home.lat`, `home.lon`                | –                       | Home coordinates for the "Home" sensor                                                                                                                                                                                            |
+| `home.radiusMeters`                   | `150`                   | Radius around home, at least 10 m                                                                                                                                                                                                 |
+| `pollingIntervalMinutes`              | `5`                     | Polling interval, at least 4 (see below)                                                                                                                                                                                          |
+| `commandRefreshDelaySeconds`          | `0`                     | Extra refresh after a command, in seconds (15–600); `0` = none                                                                                                                                                                    |
+| `lowBatteryThreshold`                 | `20`                    | Low battery below this state of charge or fuel level (%)                                                                                                                                                                          |
+| `climateTemperature`                  | `21`                    | Cabin temperature (°C) until the vehicle reports one                                                                                                                                                                              |
+| `airConditioningWithoutExternalPower` | –                       | Allow air conditioning on battery; unset keeps the vehicle setting                                                                                                                                                                |
+| `auxiliaryHeatingDurationMinutes`     | –                       | Auxiliary heating run time; unset keeps the vehicle setting                                                                                                                                                                       |
+| `features.*`                          | see table above         | `battery`, `stateOfChargeSensor`, `fuelLevel`, `fuelLevelSensor`, `charging`, `chargingLimit`, `climate`, `auxiliaryHeating`, `activeVentilation`, `presence`, `doors`, `windows`, `trunk`, `bonnet`, `sunroof`, `lock`, `lights` |
 
 ## Rate limit
 
@@ -144,11 +159,14 @@ The plugin is built around that limit:
 
 - **One request per update.** A single call returns all vehicle data.
 - **HomeKit never triggers requests.** Opening the Home app reads from the plugin's cache.
-- **Four requests per hour stay free** for commands and their follow-up refresh. That makes 4
-  minutes the shortest polling interval; shorter values are raised with a warning. The default of
-  5 minutes uses 12 requests per hour.
-- **After a command**, HomeKit shows the expected state right away, and the plugin refreshes once
-  after `commandRefreshDelaySeconds` to confirm it. Several commands in a row share one refresh.
+- **Four requests per hour stay free** for commands. That makes 4 minutes the shortest polling
+  interval; shorter values are raised with a warning. The default of 5 minutes uses 12 requests
+  per hour and leaves 8 for commands. The log shows this split at startup.
+- **A command costs one request.** The vehicle reports new state with a delay, so instead of an
+  extra refresh the plugin keeps the expected state until a regular update carries the vehicle's
+  new report. If you want a quicker confirmation, set `commandRefreshDelaySeconds` (15–600): the
+  plugin then refreshes once that long after a command, and several commands in a row share one
+  refresh. Each refresh costs one more request.
 - **When the budget is used up**, commands are rejected ("No Response" in the Home app) instead of
   being sent, and polling waits until requests are available again.
 - **Errors back off.** On `429` and `503` the plugin waits for `Retry-After`. On other server and
@@ -175,6 +193,7 @@ suggests, and a command may take a minute or two to show up.
 | `rate limit budget exhausted`                          | Too many commands in the last hour; try again later             |
 | `the vehicle declined the request`                     | The vehicle refused for now (e.g. low battery); try again later |
 | `this function is currently disabled for the vehicle`  | Enable the service for the vehicle in the MyŠkoda app           |
+| `The vehicle does not support …`                       | The vehicle rejected the command; its control is removed        |
 
 ## Development
 
@@ -187,6 +206,9 @@ npm run build
 ```
 
 The tests mock the API completely and contain no real keys or vehicle data.
+
+Upstream changes worth following (the API, the Python library and the Home Assistant integration)
+are listed in [MAINTAINING.md](MAINTAINING.md).
 
 ## License
 
