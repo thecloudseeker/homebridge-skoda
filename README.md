@@ -66,12 +66,15 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
 
 ## Installation
 
-The plugin is not published to npm yet. Once it is, search for `@thecloudseeker/homebridge-skoda`
-in the Homebridge UI, or run:
+In the Homebridge UI, open **Plugins**, search for `@thecloudseeker/homebridge-skoda` and click
+**Install**. Or run this in the Homebridge terminal:
 
 ```sh
-npm install -g @thecloudseeker/homebridge-skoda
+hb-service add @thecloudseeker/homebridge-skoda
 ```
+
+Running the plugin as a child bridge is recommended, so problems with the Škoda API never hold up
+your other accessories.
 
 ## Creating an API key
 
