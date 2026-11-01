@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- **Fixed:** the Homebridge UI stored the sections of the vehicle form (commands, home location, polling, features) as separate vehicle entries without VIN and key. All fields of a vehicle now stay in one entry. If you saved the config with 0.1.0, remove the extra entries or add the vehicle again.
+
 ## 0.1.0
 
 First release, for the official MyŠkoda Public API (contract 1.1.0).

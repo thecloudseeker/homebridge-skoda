@@ -58,4 +58,24 @@ describe("config.schema.json", () => {
       expect(layout).toContain(`{"key":"vehicles[].${key}","type":"password"}`);
     }
   });
+
+  it("keeps all fields of a vehicle in one array item", () => {
+    // Several top-level layout items inside an array make the Homebridge UI store each of them
+    // as a separate vehicle entry, so everything must sit in one container.
+    const [vehicles] = schema.layout as {
+      key: string;
+      items: { type: string; items?: unknown[] }[];
+    }[];
+    expect(vehicles?.key).toBe("vehicles");
+    expect(vehicles?.items).toHaveLength(1);
+    expect(vehicles?.items[0]?.type).toBe("section");
+
+    const keys = JSON.stringify(vehicles).match(/vehicles\[\]\.[\w.]+/g) ?? [];
+    const fields = Object.keys(vehicle).filter(
+      (key) => key !== "features" && key !== "home",
+    );
+    for (const field of fields) {
+      expect(keys, field).toContain(`vehicles[].${field}`);
+    }
+  });
 });

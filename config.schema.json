@@ -201,72 +201,86 @@
       "orderable": false,
       "buttonText": "Add vehicle",
       "items": [
-        "vehicles[].name",
-        "vehicles[].vin",
-        { "key": "vehicles[].token", "type": "password" },
         {
-          "type": "fieldset",
-          "title": "Commands",
-          "expandable": true,
-          "expanded": false,
+          "type": "section",
           "items": [
-            { "key": "vehicles[].commandToken", "type": "password" },
-            { "key": "vehicles[].spin", "type": "password" },
-            "vehicles[].commandRefreshDelaySeconds",
-            "vehicles[].climateTemperature",
-            "vehicles[].airConditioningWithoutExternalPower",
-            "vehicles[].auxiliaryHeatingDurationMinutes"
-          ]
-        },
-        {
-          "type": "fieldset",
-          "title": "Home location",
-          "description": "Used for the \"Home\" occupancy sensor.",
-          "expandable": true,
-          "expanded": false,
-          "items": [
+            "vehicles[].name",
+            "vehicles[].vin",
             {
-              "type": "flex",
-              "flex-flow": "row wrap",
+              "key": "vehicles[].token",
+              "type": "password"
+            },
+            {
+              "type": "fieldset",
+              "title": "Commands",
+              "expandable": true,
+              "expanded": false,
               "items": [
-                "vehicles[].home.lat",
-                "vehicles[].home.lon",
-                "vehicles[].home.radiusMeters"
+                {
+                  "key": "vehicles[].commandToken",
+                  "type": "password"
+                },
+                {
+                  "key": "vehicles[].spin",
+                  "type": "password"
+                },
+                "vehicles[].commandRefreshDelaySeconds",
+                "vehicles[].climateTemperature",
+                "vehicles[].airConditioningWithoutExternalPower",
+                "vehicles[].auxiliaryHeatingDurationMinutes"
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Home location",
+              "description": "Used for the \"Home\" occupancy sensor.",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                {
+                  "type": "flex",
+                  "flex-flow": "row wrap",
+                  "items": [
+                    "vehicles[].home.lat",
+                    "vehicles[].home.lon",
+                    "vehicles[].home.radiusMeters"
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Polling",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].pollingIntervalMinutes",
+                "vehicles[].lowBatteryThreshold"
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Features",
+              "description": "Services are only created if the vehicle supports them.",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].features.battery",
+                "vehicles[].features.stateOfChargeSensor",
+                "vehicles[].features.charging",
+                "vehicles[].features.chargingLimit",
+                "vehicles[].features.climate",
+                "vehicles[].features.auxiliaryHeating",
+                "vehicles[].features.activeVentilation",
+                "vehicles[].features.presence",
+                "vehicles[].features.doors",
+                "vehicles[].features.windows",
+                "vehicles[].features.trunk",
+                "vehicles[].features.bonnet",
+                "vehicles[].features.sunroof",
+                "vehicles[].features.lock"
               ]
             }
-          ]
-        },
-        {
-          "type": "fieldset",
-          "title": "Polling",
-          "expandable": true,
-          "expanded": false,
-          "items": [
-            "vehicles[].pollingIntervalMinutes",
-            "vehicles[].lowBatteryThreshold"
-          ]
-        },
-        {
-          "type": "fieldset",
-          "title": "Features",
-          "description": "Services are only created if the vehicle supports them.",
-          "expandable": true,
-          "expanded": false,
-          "items": [
-            "vehicles[].features.battery",
-            "vehicles[].features.stateOfChargeSensor",
-            "vehicles[].features.charging",
-            "vehicles[].features.chargingLimit",
-            "vehicles[].features.climate",
-            "vehicles[].features.auxiliaryHeating",
-            "vehicles[].features.activeVentilation",
-            "vehicles[].features.presence",
-            "vehicles[].features.doors",
-            "vehicles[].features.windows",
-            "vehicles[].features.trunk",
-            "vehicles[].features.bonnet",
-            "vehicles[].features.sunroof",
-            "vehicles[].features.lock"
           ]
         }
       ]
