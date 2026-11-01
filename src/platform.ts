@@ -92,14 +92,9 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     uuid: string,
     log: Logger,
   ): void {
-    let accessory = this.cachedAccessories.get(uuid);
-    if (!accessory) {
-      accessory = new this.api.platformAccessory(settings.name, uuid);
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-        accessory,
-      ]);
-      log.info("Added vehicle");
-    }
+    const cached = this.cachedAccessories.get(uuid);
+    const accessory =
+      cached ?? new this.api.platformAccessory(settings.name, uuid);
 
     // The rate limit applies per VIN, so both keys of a vehicle share one budget.
     const budget = new RateBudget();
@@ -142,6 +137,23 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
       settings,
       log,
     });
+
+    if (!cached) {
+      // A new vehicle is published once the first poll has created its services. Services added
+      // after publishing change the accessory while the Home app may be pairing it, and the Home
+      // app then replaces the service names with generic ones ("Contact Sensor 2").
+      const unsubscribe = controller.onUpdate((snapshot) => {
+        if (!snapshot) {
+          return;
+        }
+        unsubscribe();
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+          accessory,
+        ]);
+        log.info("Added vehicle");
+      });
+    }
+
     log.info(
       `Polling every ${settings.pollingIntervalMinutes} min${settings.commandToken ? ", separate command key" : ""}`,
     );

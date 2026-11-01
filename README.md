@@ -76,6 +76,11 @@ hb-service add @thecloudseeker/homebridge-skoda
 Running the plugin as a child bridge is recommended, so problems with the Škoda API never hold up
 your other accessories.
 
+A newly configured vehicle appears in HomeKit after the first successful update from the API,
+usually a few seconds after Homebridge has started. That way it shows up complete, and the Home app
+keeps the names of its sensors. If it does not appear, check the log for an error about the API
+key or the VIN.
+
 ## Creating an API key
 
 1. Open the **MyŠkoda app** and go to **Profile › Smart Home**. On your phone you can also open

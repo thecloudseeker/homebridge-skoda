@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- **Fixed:** while pairing, the Home app could replace the sensor names with generic ones ("Contact Sensor 2"). A new vehicle was published to HomeKit before its sensors existed, so they were added during pairing. Now a new vehicle is published once the first update has created all its sensors. If your sensors already have generic names, remove the bridge from the Home app and pair it again.
+- The README shows the install command for the Homebridge terminal: `hb-service add @thecloudseeker/homebridge-skoda`.
+
 ## 0.1.1
 
 - **Fixed:** the Homebridge UI stored the sections of the vehicle form (commands, home location, polling, features) as separate vehicle entries without VIN and key. All fields of a vehicle now stay in one entry. If you saved the config with 0.1.0, remove the extra entries or add the vehicle again.
