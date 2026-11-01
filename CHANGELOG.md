@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- The author link on npm points to [eikedreier.com](https://eikedreier.com/).
+
 ## 0.1.2
 
 - **Fixed:** while pairing, the Home app could replace the sensor names with generic ones ("Contact Sensor 2"). A new vehicle was published to HomeKit before its sensors existed, so they were added during pairing. Now a new vehicle is published once the first update has created all its sensors. If your sensors already have generic names, remove the bridge from the Home app and pair it again.
