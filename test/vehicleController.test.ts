@@ -5,7 +5,6 @@ import { RateBudget } from "../src/api/rateBudget.js";
 import type { Vehicle } from "../src/api/types.js";
 import { VehicleController } from "../src/vehicle/vehicleController.js";
 import {
-  TEST_COMMAND_TOKEN,
   TEST_TOKEN,
   TEST_VIN,
   loadFixture,
@@ -38,32 +37,19 @@ function routedFetch(overrides: (Response | Error)[] = []) {
   });
 }
 
-function setup(
-  fetch: typeof globalThis.fetch = routedFetch(),
-  options: { separateCommandKey?: boolean; refreshDelaySeconds?: number } = {},
-) {
+function setup(fetch: typeof globalThis.fetch = routedFetch()) {
   const budget = new RateBudget();
   const log = silentLogger();
-  const pollClient = new SkodaApiClient({
+  const client = new SkodaApiClient({
     token: TEST_TOKEN,
     vin: TEST_VIN,
     budget,
     fetch,
   });
-  const commandClient = options.separateCommandKey
-    ? new SkodaApiClient({
-        token: TEST_COMMAND_TOKEN,
-        vin: TEST_VIN,
-        budget,
-        fetch,
-      })
-    : pollClient;
   const controller = new VehicleController({
-    pollClient,
-    commandClient,
+    client,
     log,
     pollingIntervalMinutes: 5,
-    commandRefreshDelaySeconds: options.refreshDelaySeconds ?? 0,
   });
   const updates = vi.fn();
   controller.onUpdate(updates);
@@ -84,12 +70,6 @@ const stopChargingPatch = {
     vehicle.charging!.status!.state = "READY_FOR_CHARGING";
   },
 };
-
-const methods = (fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>) =>
-  fetch.mock.calls.map(
-    ([url, init]) =>
-      `${init?.method ?? ""} ${(url as string).replace(/^.*\/vehicles\/[^/?]+/, "")}`,
-  );
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -130,7 +110,7 @@ describe("VehicleController polling", () => {
     const { controller } = setup(fetch);
     controller.start();
     await vi.advanceTimersByTimeAsync(0);
-    // A command every two minutes for three hours, each scheduling its own refresh.
+    // A command every two minutes for three hours.
     for (let i = 0; i < 90; i++) {
       await controller
         .runCommand("Start charging", (client) => client.startCharging())
@@ -334,48 +314,7 @@ describe("VehicleController commands", () => {
     controller.stop();
   });
 
-  it("refreshes once after the delay when a refresh delay is configured", async () => {
-    const fetch = routedFetch();
-    const { controller } = setup(fetch, { refreshDelaySeconds: 90 });
-    controller.start();
-    await vi.advanceTimersByTimeAsync(0);
-
-    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
-      optimistic: stopChargingPatch,
-    });
-    expect(methods(fetch)).toEqual([
-      "GET ?include=info,status,fuelStatus,odometer,parkingPosition,airConditioning,auxiliaryHeating,activeVentilation,charging,operations",
-      "POST /charging/stop",
-    ]);
-
-    await vi.advanceTimersByTimeAsync(89_000);
-    expect(fetch).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(fetch).toHaveBeenCalledTimes(3);
-    // Regular polling continues one interval after the refresh.
-    await vi.advanceTimersByTimeAsync(5 * MINUTE);
-    expect(fetch).toHaveBeenCalledTimes(4);
-    controller.stop();
-  });
-
-  it("coalesces the refresh of several commands", async () => {
-    const fetch = routedFetch();
-    const { controller } = setup(fetch, { refreshDelaySeconds: 90 });
-    controller.start();
-    await vi.advanceTimersByTimeAsync(0);
-    await controller.runCommand("Start air conditioning", (c) =>
-      c.startAirConditioning({}),
-    );
-    await vi.advanceTimersByTimeAsync(30_000);
-    await controller.runCommand("Stop air conditioning", (c) =>
-      c.stopAirConditioning(),
-    );
-    await vi.advanceTimersByTimeAsync(90_000);
-    expect(methods(fetch).filter((m) => m.startsWith("GET"))).toHaveLength(2);
-    controller.stop();
-  });
-
-  it("sends no extra request after a command by default", async () => {
+  it("sends no extra request after a command", async () => {
     const fetch = routedFetch();
     const { controller } = setup(fetch);
     controller.start();
@@ -416,19 +355,6 @@ describe("VehicleController commands", () => {
     await vi.advanceTimersByTimeAsync(5 * MINUTE);
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(names()).not.toContain("startCharging");
-    controller.stop();
-  });
-
-  it("uses the command client when a separate key is configured", async () => {
-    const fetch = routedFetch();
-    const { controller } = setup(fetch, { separateCommandKey: true });
-    controller.start();
-    await vi.advanceTimersByTimeAsync(0);
-    await controller.runCommand("Start charging", (c) => c.startCharging());
-    const keys = fetch.mock.calls.map(
-      ([, init]) => (init?.headers as Record<string, string>)["X-API-Key"],
-    );
-    expect(keys).toEqual([TEST_TOKEN, TEST_COMMAND_TOKEN]);
     controller.stop();
   });
 

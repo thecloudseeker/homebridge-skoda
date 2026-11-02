@@ -6,7 +6,7 @@ import {
 } from "../src/config.js";
 import { createVehicleLogger } from "../src/util/logger.js";
 import { maskVin, redact } from "../src/util/redact.js";
-import { TEST_COMMAND_TOKEN, TEST_TOKEN, TEST_VIN } from "./helpers.js";
+import { TEST_TOKEN, TEST_VIN } from "./helpers.js";
 
 const base = { name: "Enyaq", vin: TEST_VIN, token: TEST_TOKEN };
 
@@ -26,11 +26,9 @@ describe("parseVehicleConfig", () => {
       name: "Enyaq",
       vin: TEST_VIN,
       token: TEST_TOKEN,
-      commandToken: undefined,
       pollingIntervalMinutes: 5,
       lowBatteryThreshold: 20,
       climateTemperature: 21,
-      commandRefreshDelaySeconds: 0,
       home: undefined,
     });
     // Without S-PIN and home coordinates these features cannot work.
@@ -41,16 +39,14 @@ describe("parseVehicleConfig", () => {
     });
   });
 
-  it("normalizes the VIN and accepts a command token, S-PIN and home", () => {
+  it("normalizes the VIN and accepts an S-PIN and home", () => {
     const { settings } = parse({
       ...base,
       vin: " tmbjb9ny5rf999999 ",
-      commandToken: TEST_COMMAND_TOKEN,
       spin: "1234",
       home: { lat: 50.1, lon: 14.4, radiusMeters: 200 },
     });
     expect(settings.vin).toBe(TEST_VIN);
-    expect(settings.commandToken).toBe(TEST_COMMAND_TOKEN);
     expect(settings.home).toEqual({
       latitude: 50.1,
       longitude: 14.4,
@@ -70,15 +66,29 @@ describe("parseVehicleConfig", () => {
     expect(warnings[0]).toContain("minimum of 4");
   });
 
-  it("turns the follow-up refresh off with 0 and clamps other values to 15–600 s", () => {
-    const delay = (commandRefreshDelaySeconds: number) =>
-      parse({ ...base, commandRefreshDelaySeconds }).settings
-        .commandRefreshDelaySeconds;
-    expect(delay(0)).toBe(0);
-    expect(delay(-5)).toBe(0);
-    expect(delay(5)).toBe(15);
-    expect(delay(90)).toBe(90);
-    expect(delay(3600)).toBe(600);
+  it("warns about options that are no longer used", () => {
+    const { settings, warnings } = parse({
+      ...base,
+      commandToken: "old-second-key",
+      commandRefreshDelaySeconds: 90,
+    });
+    expect(warnings).toEqual([
+      "vehicles[0].commandToken is no longer used and can be removed from the config",
+      "vehicles[0].commandRefreshDelaySeconds is no longer used and can be removed from the config",
+    ]);
+    expect(JSON.stringify(settings)).not.toContain("old-second-key");
+  });
+
+  it("reads the air conditioning allowance from the UI select and old booleans", () => {
+    const allowance = (airConditioningWithoutExternalPower: unknown) =>
+      parse({ ...base, airConditioningWithoutExternalPower }).settings
+        .airConditioningWithoutExternalPower;
+    expect(allowance("allow")).toBe(true);
+    expect(allowance("deny")).toBe(false);
+    expect(allowance("vehicle")).toBeUndefined();
+    expect(allowance(undefined)).toBeUndefined();
+    expect(allowance(true)).toBe(true);
+    expect(allowance(false)).toBe(false);
   });
 
   it("respects feature toggles", () => {

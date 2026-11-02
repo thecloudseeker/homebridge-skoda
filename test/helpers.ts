@@ -6,7 +6,6 @@ import type { VehicleResponse } from "../src/api/types.js";
 export const TEST_VIN = "TMBJB9NY5RF999999";
 /** Obviously fake keys, never real ones. */
 export const TEST_TOKEN = "test-poll-key-not-real";
-export const TEST_COMMAND_TOKEN = "test-command-key-not-real";
 
 export function loadFixture(name: string): VehicleResponse {
   return JSON.parse(

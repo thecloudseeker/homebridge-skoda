@@ -21,13 +21,9 @@ const KEY_EXPIRY_WARNING_REPEAT_MS = 24 * HOUR;
 const OPTIMISTIC_TTL_MS = 15 * MINUTE;
 
 export interface VehicleControllerOptions {
-  pollClient: SkodaApiClient;
-  /** May be the same client as `pollClient` when no separate command key is configured. */
-  commandClient: SkodaApiClient;
+  client: SkodaApiClient;
   log: Logger;
   pollingIntervalMinutes: number;
-  /** 0 disables the follow-up refresh; the next scheduled poll confirms the command instead. */
-  commandRefreshDelaySeconds: number;
 }
 
 /** Parts that carry a `carCapturedTimestamp`, which tells when the vehicle last reported them. */
@@ -63,7 +59,6 @@ export class VehicleController {
   private current: VehicleSnapshot | undefined;
   private readonly listeners = new Set<Listener>();
   private readonly intervalMs: number;
-  private readonly refreshDelayMs: number;
   private pollTimer: NodeJS.Timeout | undefined;
   private staleTimer: NodeJS.Timeout | undefined;
   private inFlight: Promise<void> | undefined;
@@ -76,7 +71,6 @@ export class VehicleController {
 
   constructor(private readonly options: VehicleControllerOptions) {
     this.intervalMs = options.pollingIntervalMinutes * MINUTE;
-    this.refreshDelayMs = options.commandRefreshDelaySeconds * 1000;
   }
 
   get snapshot(): VehicleSnapshot | undefined {
@@ -98,7 +92,7 @@ export class VehicleController {
 
   start(): void {
     this.stopped = false;
-    this.schedule(0, "poll");
+    this.schedule(0);
   }
 
   stop(): void {
@@ -110,9 +104,8 @@ export class VehicleController {
   /**
    * Sends a command. On success the optional optimistic patch is applied to the cache right away
    * and re-applied after every poll until the vehicle reports the changed part again, because the
-   * vehicle reports new state with a delay. A follow-up refresh is only scheduled when
-   * `commandRefreshDelaySeconds` is set. Errors are logged and rethrown for the caller to revert
-   * the UI.
+   * vehicle reports new state with a delay, so no extra request is spent on confirming it. Errors
+   * are logged and rethrown for the caller to revert the UI.
    */
   async runCommand(
     label: string,
@@ -121,7 +114,7 @@ export class VehicleController {
   ): Promise<void> {
     const { operations = [], optimistic } = options;
     try {
-      await send(this.options.commandClient);
+      await send(this.options.client);
     } catch (error) {
       this.options.log.warn(`${label} failed: ${describeCommandError(error)}`);
       if (
@@ -147,9 +140,6 @@ export class VehicleController {
         this.emit();
       }
     }
-    if (this.refreshDelayMs > 0) {
-      this.schedule(this.refreshDelayMs, "refresh");
-    }
   }
 
   /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day per key. */
@@ -173,31 +163,30 @@ export class VehicleController {
     );
   }
 
-  private schedule(delayMs: number, kind: "poll" | "refresh"): void {
+  private schedule(delayMs: number): void {
     if (this.stopped) {
       return;
     }
     clearTimeout(this.pollTimer);
     this.pollTimer = setTimeout(
       () => {
-        void this.poll(kind);
+        void this.poll();
       },
       Math.max(0, delayMs),
     );
     this.pollTimer.unref();
   }
 
-  private poll(kind: "poll" | "refresh"): Promise<void> {
-    // A command may schedule a refresh while a poll is running; the running poll is enough.
-    this.inFlight ??= this.fetch(kind).finally(() => {
+  private poll(): Promise<void> {
+    this.inFlight ??= this.fetch().finally(() => {
       this.inFlight = undefined;
     });
     return this.inFlight;
   }
 
-  private async fetch(kind: "poll" | "refresh"): Promise<void> {
+  private async fetch(): Promise<void> {
     try {
-      const response = await this.options.pollClient.getVehicle(kind);
+      const response = await this.options.client.getVehicle();
       this.current = this.applyLocalState(
         mergeSnapshot(this.current, response, Date.now()),
       );
@@ -209,23 +198,23 @@ export class VehicleController {
       this.options.log.debug(
         `Vehicle data updated (${response.errors?.length ?? 0} partial-data notice(s))`,
       );
-      this.schedule(this.intervalMs, "poll");
+      this.schedule(this.intervalMs);
     } catch (error) {
-      this.handlePollError(error, kind);
+      this.handlePollError(error);
     }
     this.armStaleTimer();
     this.emit();
   }
 
-  private handlePollError(error: unknown, kind: "poll" | "refresh"): void {
+  private handlePollError(error: unknown): void {
     const { log } = this.options;
     const now = Date.now();
 
     if (error instanceof BudgetExhaustedError) {
       log.debug(
-        `Request budget exhausted, next ${kind} at ${new Date(error.availableAt).toISOString()}`,
+        `Request budget exhausted, next update at ${new Date(error.availableAt).toISOString()}`,
       );
-      this.schedule(error.availableAt - now + 1000, kind);
+      this.schedule(error.availableAt - now + 1000);
       return;
     }
 
@@ -236,7 +225,7 @@ export class VehicleController {
         this.logOnce(`${error.status}:${error.problemType ?? ""}`, () => {
           log.error(`${describeConfigError(error)} Retrying every hour.`);
         });
-        this.schedule(CONFIG_ERROR_RETRY_MS, "poll");
+        this.schedule(CONFIG_ERROR_RETRY_MS);
         return;
       }
       if (error.status === 429 || error.status === 503) {
@@ -244,7 +233,7 @@ export class VehicleController {
         log.warn(
           `Vehicle update deferred (${error.message}); retrying in ${formatDelay(Math.max(retryMs, this.backoffMs()))}`,
         );
-        this.schedule(Math.max(retryMs, this.backoffMs()), "poll");
+        this.schedule(Math.max(retryMs, this.backoffMs()));
         return;
       }
       if (error.status === 400) {
@@ -265,7 +254,7 @@ export class VehicleController {
         `Unexpected error while updating the vehicle: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    this.schedule(this.backoffMs(), "poll");
+    this.schedule(this.backoffMs());
   }
 
   /**

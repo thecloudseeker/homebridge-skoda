@@ -66,7 +66,6 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
 
       const log = createVehicleLogger(this.log, settings.name, settings.vin, [
         settings.token,
-        settings.commandToken,
         settings.spin,
       ]);
       for (const warning of result.warnings) {
@@ -96,37 +95,19 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     const accessory =
       cached ?? new this.api.platformAccessory(settings.name, uuid);
 
-    // The rate limit applies per VIN, so both keys of a vehicle share one budget.
-    const budget = new RateBudget();
-    const userAgent = `homebridge-skoda/${PLUGIN_VERSION}`;
-    const keyExpiry = (label: string) => (expiresAt: Date) => {
-      controller.noteKeyExpiry(label, expiresAt);
-    };
-    const pollClient = new SkodaApiClient({
+    const client = new SkodaApiClient({
       token: settings.token,
       vin: settings.vin,
-      budget,
-      userAgent,
-      onKeyExpiry: keyExpiry(
-        settings.commandToken ? "polling API key" : "API key",
-      ),
+      budget: new RateBudget(),
+      userAgent: `homebridge-skoda/${PLUGIN_VERSION}`,
+      onKeyExpiry: (expiresAt) => {
+        controller.noteKeyExpiry("API key", expiresAt);
+      },
     });
-    const commandClient = settings.commandToken
-      ? new SkodaApiClient({
-          token: settings.commandToken,
-          vin: settings.vin,
-          budget,
-          userAgent,
-          onKeyExpiry: keyExpiry("command API key"),
-        })
-      : pollClient;
-
     const controller = new VehicleController({
-      pollClient,
-      commandClient,
+      client,
       log,
       pollingIntervalMinutes: settings.pollingIntervalMinutes,
-      commandRefreshDelaySeconds: settings.commandRefreshDelaySeconds,
     });
     this.controllers.push(controller);
 
@@ -165,7 +146,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     const pollsPerHour = Math.ceil(60 / settings.pollingIntervalMinutes);
     log.info(
       `Polling every ${settings.pollingIntervalMinutes} min (${pollsPerHour} of ${DEFAULT_RATE_LIMIT} requests per hour, ` +
-        `${Math.max(0, DEFAULT_RATE_LIMIT - pollsPerHour)} left for commands)${settings.commandToken ? ", separate command key" : ""}`,
+        `${Math.max(0, DEFAULT_RATE_LIMIT - pollsPerHour)} left for commands)`,
     );
     controller.start();
   }

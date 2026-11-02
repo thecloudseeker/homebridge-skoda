@@ -47,6 +47,11 @@ export abstract class ServiceBinding {
 
   constructor(protected readonly ctx: BindingContext) {}
 
+  /** Name of the service in HomeKit. */
+  get name(): string {
+    return this.displayName;
+  }
+
   /** Whether the service exists on the (possibly cached) accessory. */
   exists(): boolean {
     return (

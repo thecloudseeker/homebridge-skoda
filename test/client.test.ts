@@ -91,21 +91,10 @@ describe("SkodaApiClient.getVehicle", () => {
     for (let i = 0; i < 16; i++) {
       budget.record();
     }
-    await expect(client.getVehicle("poll")).rejects.toBeInstanceOf(
+    await expect(client.getVehicle()).rejects.toBeInstanceOf(
       BudgetExhaustedError,
     );
     expect(fetch).not.toHaveBeenCalled();
-  });
-
-  it("lets a follow-up refresh use the reserve", async () => {
-    const { client, fetch, budget } = setup(
-      mockResponse({ body: loadFixture("enyaq") }),
-    );
-    for (let i = 0; i < 16; i++) {
-      budget.record();
-    }
-    await client.getVehicle("refresh");
-    expect(fetch).toHaveBeenCalledOnce();
   });
 });
 

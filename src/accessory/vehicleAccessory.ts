@@ -31,6 +31,7 @@ export class VehicleAccessory {
   private readonly unsupportedUpdates = new Map<keyof FeatureToggles, number>();
   /** `fetchedAt` of the last snapshot, so optimistic updates and stale notices are not counted. */
   private lastFetchedAt: number | undefined;
+  private lastSupportSummary: string | undefined;
 
   constructor(private readonly ctx: BindingContext) {
     this.bindings = [
@@ -98,6 +99,30 @@ export class VehicleAccessory {
     }
     if (changed) {
       this.ctx.onServicesChanged?.();
+    }
+    if (snapshot && newUpdate) {
+      this.logSupport(snapshot);
+    }
+  }
+
+  /**
+   * Logs what the vehicle supports whenever that changes, so users can see which features exist
+   * for their vehicle without trying each one, and which of them are turned off in the config.
+   */
+  private logSupport(snapshot: VehicleSnapshot): void {
+    const supported = this.bindings.filter(
+      (binding) => featureSupport(snapshot, binding.feature) === true,
+    );
+    const { features } = this.ctx.settings;
+    const shown = supported.filter((binding) => features[binding.feature]);
+    const off = supported.filter((binding) => !features[binding.feature]);
+    let summary = `Supported by the vehicle: ${shown.map((b) => b.name).join(", ") || "none"}`;
+    if (off.length > 0) {
+      summary += `. Also supported, but turned off: ${off.map((b) => `${b.name} (features.${b.feature})`).join(", ")}`;
+    }
+    if (summary !== this.lastSupportSummary) {
+      this.lastSupportSummary = summary;
+      this.ctx.log.info(summary);
     }
   }
 }

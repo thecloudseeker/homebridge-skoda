@@ -166,6 +166,27 @@ function isRunning(state: ClimateState | undefined): boolean | undefined {
   return state !== undefined && RUNNING_STATES.has(state) ? true : undefined;
 }
 
+/** On while the front or rear window heating runs; unknown unless one of them reports ON or OFF. */
+export function isWindowHeatingOn(vehicle: Vehicle): boolean | undefined {
+  const heating = vehicle.airConditioning?.windowHeating;
+  const states = [heating?.front, heating?.rear].map(onOff);
+  if (states.includes(true)) {
+    return true;
+  }
+  return states.includes(false) ? false : undefined;
+}
+
+/** Whether the charging cable plugs are locked; unknown when the vehicle reports no value. */
+export function isPlugLocked(vehicle: Vehicle): boolean | undefined {
+  switch (vehicle.charging?.status?.plugLockState) {
+    case "LOCKED":
+      return true;
+    case "UNLOCKED":
+      return false;
+  }
+  return undefined;
+}
+
 export function isAuxiliaryHeatingOn(vehicle: Vehicle): boolean | undefined {
   return isRunning(vehicle.auxiliaryHeating?.state);
 }

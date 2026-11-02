@@ -59,11 +59,9 @@ function setup(responses: Response[], settings = settingsFor()) {
   });
   const log = silentLogger();
   const controller = new VehicleController({
-    pollClient: client,
-    commandClient: client,
+    client,
     log,
     pollingIntervalMinutes: settings.pollingIntervalMinutes,
-    commandRefreshDelaySeconds: settings.commandRefreshDelaySeconds,
   });
   const accessory = new hapNodejs.Accessory(
     "Enyaq",
@@ -221,6 +219,50 @@ describe("VehicleAccessory", () => {
         Characteristic.ContactSensorState,
       ),
     ).toBe(Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
+    controller.stop();
+  });
+
+  it("adds the optional window heating and plug lock sensors", async () => {
+    const enyaq = loadFixture("enyaq");
+    enyaq.vehicle.airConditioning!.windowHeating = { front: "ON", rear: "OFF" };
+    const { accessory, controller } = setup(
+      [mockResponse({ body: enyaq })],
+      settingsFor({ features: { windowHeating: true, plugLock: true } }),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const { CONTACT_DETECTED, CONTACT_NOT_DETECTED } =
+      Characteristic.ContactSensorState;
+    const state = (subtype: string) =>
+      value(
+        accessory,
+        Service.ContactSensor,
+        subtype,
+        Characteristic.ContactSensorState,
+      );
+    expect(state("windowHeating")).toBe(CONTACT_NOT_DETECTED);
+    expect(state("plugLock")).toBe(CONTACT_DETECTED);
+    controller.stop();
+  });
+
+  it("logs what the vehicle supports, including features turned off", async () => {
+    const { controller, fetch, log } = setup([]);
+    fetch.mockImplementation(() =>
+      Promise.resolve(mockResponse({ body: loadFixture("gasoline-live") })),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(log.info).toHaveBeenCalledWith(
+      "Supported by the vehicle: Fuel, Home, Doors, Windows, Trunk, Bonnet, Sunroof, Locked. " +
+        "Also supported, but turned off: Fuel Level (features.fuelLevelSensor), " +
+        "Ventilation (features.activeVentilation), Lights (features.lights)",
+    );
+    // Later updates with the same support do not repeat it.
+    log.info.mockClear();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(log.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Supported by the vehicle"),
+    );
     controller.stop();
   });
 

@@ -42,7 +42,6 @@ describe("RateBudget", () => {
       budget.record();
     }
     expect(budget.canSpend("command")).toBe(false);
-    expect(budget.canSpend("refresh")).toBe(false);
     expect(budget.remaining()).toBe(0);
   });
 

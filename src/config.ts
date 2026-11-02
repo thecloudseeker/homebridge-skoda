@@ -35,6 +35,10 @@ export interface FeatureToggles {
   lock: boolean;
   /** Contact sensor that is open while the lights are on. */
   lights: boolean;
+  /** Contact sensor that is open while the front or rear window heating is on. */
+  windowHeating: boolean;
+  /** Contact sensor that is closed while the charging cable is locked. */
+  plugLock: boolean;
 }
 
 export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
@@ -55,6 +59,8 @@ export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
   sunroof: true,
   lock: true,
   lights: false,
+  windowHeating: false,
+  plugLock: false,
 };
 
 export interface HomeLocation {
@@ -67,8 +73,6 @@ export interface VehicleSettings {
   name: string;
   vin: string;
   token: string;
-  /** Separate key for commands; falls back to `token`. */
-  commandToken: string | undefined;
   spin: string | undefined;
   home: HomeLocation | undefined;
   pollingIntervalMinutes: number;
@@ -77,7 +81,6 @@ export interface VehicleSettings {
   climateTemperature: number;
   airConditioningWithoutExternalPower: boolean | undefined;
   auxiliaryHeatingDurationMinutes: number | undefined;
-  commandRefreshDelaySeconds: number;
   features: FeatureToggles;
 }
 
@@ -94,8 +97,10 @@ export const DEFAULT_CLIMATE_TEMPERATURE = 21;
 export const CLIMATE_TEMPERATURE_MIN = 16;
 export const CLIMATE_TEMPERATURE_MAX = 29.5;
 export const CLIMATE_TEMPERATURE_STEP = 0.5;
-/** 0: no follow-up refresh; the next scheduled poll confirms a command. */
-export const DEFAULT_COMMAND_REFRESH_DELAY_SECONDS = 0;
+
+/** Options of earlier versions that are ignored now: a second key brings no extra requests, and
+ * the expected state after a command makes an extra refresh unnecessary. */
+const REMOVED_OPTIONS = ["commandToken", "commandRefreshDelaySeconds"] as const;
 
 const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 
@@ -196,11 +201,13 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     0,
     100,
   );
-  const refreshDelay =
-    optionalNumber(raw.commandRefreshDelaySeconds) ??
-    DEFAULT_COMMAND_REFRESH_DELAY_SECONDS;
-  const commandRefreshDelaySeconds =
-    refreshDelay <= 0 ? 0 : clamp(refreshDelay, 15, 600);
+  for (const removed of REMOVED_OPTIONS) {
+    if (raw[removed] !== undefined) {
+      warnings.push(
+        `${label}.${removed} is no longer used and can be removed from the config`,
+      );
+    }
+  }
   const auxiliaryHeatingDuration = optionalNumber(
     raw.auxiliaryHeatingDurationMinutes,
   );
@@ -216,21 +223,18 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
       name: optionalString(raw.name) ?? `Škoda ${vin.slice(-4)}`,
       vin,
       token,
-      commandToken: optionalString(raw.commandToken),
       spin,
       home,
       pollingIntervalMinutes,
       lowBatteryThreshold,
       climateTemperature,
-      airConditioningWithoutExternalPower:
-        typeof raw.airConditioningWithoutExternalPower === "boolean"
-          ? raw.airConditioningWithoutExternalPower
-          : undefined,
+      airConditioningWithoutExternalPower: parseAllowance(
+        raw.airConditioningWithoutExternalPower,
+      ),
       auxiliaryHeatingDurationMinutes:
         auxiliaryHeatingDuration === undefined
           ? undefined
           : clamp(Math.round(auxiliaryHeatingDuration), 1, 60),
-      commandRefreshDelaySeconds,
       features,
     },
   };
@@ -262,6 +266,17 @@ function parseHome(
     optionalNumber(raw.radiusMeters) ?? DEFAULT_HOME_RADIUS_METERS,
   );
   return { latitude, longitude, radiusMeters };
+}
+
+/** `"allow"` / `"deny"` from the Homebridge UI, or a boolean from configs written before 0.3.0. */
+function parseAllowance(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (value === "allow") {
+    return true;
+  }
+  return value === "deny" ? false : undefined;
 }
 
 function clamp(value: number, min: number, max: number): number {

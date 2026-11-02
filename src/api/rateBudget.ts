@@ -7,15 +7,15 @@
  *
  * The budget keeps its own sliding window of sent requests and additionally trusts what the server
  * reports. It always uses the stricter of both. Regular polls must leave `reserve` slots free so
- * commands and their follow-up refresh still go through.
+ * commands still go through.
  */
 
 export const DEFAULT_RATE_LIMIT = 20;
 export const DEFAULT_COMMAND_RESERVE = 4;
 export const RATE_WINDOW_MS = 60 * 60 * 1000;
 
-/** `poll` must respect the command reserve; `command` and `refresh` may use it. */
-export type RequestKind = "poll" | "refresh" | "command";
+/** `poll` must respect the command reserve; `command` may use it. */
+export type RequestKind = "poll" | "command";
 
 export interface RateLimitHeaders {
   limit?: number;

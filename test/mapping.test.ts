@@ -12,6 +12,8 @@ import {
   isAuxiliaryHeatingOn,
   isCharging,
   isPlugConnected,
+  isPlugLocked,
+  isWindowHeatingOn,
   normalizeChargingLimit,
   stateOfCharge,
   toCelsius,
@@ -233,6 +235,29 @@ describe("body mapping", () => {
   });
 });
 
+describe("window heating and plug lock mapping", () => {
+  it("is on while the front or rear window heating runs", () => {
+    const vehicle = structuredClone(enyaq.vehicle);
+    expect(isWindowHeatingOn(vehicle)).toBe(false);
+    vehicle.airConditioning!.windowHeating = { front: "OFF", rear: "ON" };
+    expect(isWindowHeatingOn(vehicle)).toBe(true);
+    vehicle.airConditioning!.windowHeating = {
+      front: "UNKNOWN",
+      rear: "UNSUPPORTED",
+    };
+    expect(isWindowHeatingOn(vehicle)).toBeUndefined();
+  });
+
+  it("maps the plug lock state", () => {
+    const vehicle = structuredClone(enyaq.vehicle);
+    expect(isPlugLocked(vehicle)).toBe(true);
+    vehicle.charging!.status!.plugLockState = "UNLOCKED";
+    expect(isPlugLocked(vehicle)).toBe(false);
+    delete vehicle.charging!.status!.plugLockState;
+    expect(isPlugLocked(vehicle)).toBeUndefined();
+  });
+});
+
 describe("fuel mapping", () => {
   it("reads the combustion fuel level and flags it low below the threshold", () => {
     expect(fuelLevel(combustion.vehicle)).toBe(65);
@@ -276,6 +301,8 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "sunroof")).toBe(false);
     expect(featureSupport(snapshot, "lock")).toBe(true);
     expect(featureSupport(snapshot, "lights")).toBe(true);
+    expect(featureSupport(snapshot, "windowHeating")).toBe(true);
+    expect(featureSupport(snapshot, "plugLock")).toBe(true);
     expect(featureSupport(snapshot, "fuelLevel")).toBe(false);
     expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(false);
   });
@@ -289,6 +316,27 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "sunroof")).toBe(true);
     expect(featureSupport(snapshot, "fuelLevel")).toBe(true);
     expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(true);
+    expect(featureSupport(snapshot, "windowHeating")).toBe(false);
+    expect(featureSupport(snapshot, "plugLock")).toBe(false);
+  });
+
+  it("treats window heating without front and rear support as unsupported", () => {
+    const vehicle = structuredClone(enyaq);
+    vehicle.vehicle.airConditioning!.windowHeating = {
+      front: "UNSUPPORTED",
+      rear: "UNSUPPORTED",
+    };
+    expect(featureSupport(snapshotOf(vehicle), "windowHeating")).toBe(false);
+    vehicle.vehicle.airConditioning!.windowHeating = { front: "UNKNOWN" };
+    expect(
+      featureSupport(snapshotOf(vehicle), "windowHeating"),
+    ).toBeUndefined();
+  });
+
+  it("keeps the plug lock unknown while the vehicle reports no value", () => {
+    const vehicle = structuredClone(enyaq);
+    delete vehicle.vehicle.charging!.status!.plugLockState;
+    expect(featureSupport(snapshotOf(vehicle), "plugLock")).toBeUndefined();
   });
 
   it("shows the fuel level of a hybrid only as a sensor", () => {
@@ -365,6 +413,8 @@ describe("anonymized live response of a gasoline vehicle", () => {
         "sunroof",
         "lock",
         "lights",
+        "windowHeating",
+        "plugLock",
       ] as const
     ).filter((feature) => featureSupport(snapshot, feature));
     expect(supported).toEqual([

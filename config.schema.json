@@ -33,17 +33,12 @@
               "title": "API key",
               "type": "string",
               "required": true,
-              "description": "API key from the MyŠkoda app. Used for polling, and for commands unless a command key is set."
-            },
-            "commandToken": {
-              "title": "Command API key (optional)",
-              "type": "string",
-              "description": "Separate key for commands, e.g. with different permissions. Both keys share the vehicle's rate limit, so a second key does not allow more requests."
+              "description": "API key from the MyŠkoda app (Profile › Smart Home). Used for reading the vehicle and for commands."
             },
             "spin": {
               "title": "S-PIN (optional)",
               "type": "string",
-              "description": "Security PIN of your MyŠkoda account. Only needed for the auxiliary heating; it is sent with each start and never logged."
+              "description": "Security PIN of your MyŠkoda account. Only needed to start the auxiliary heating; it is sent with each start and never logged."
             },
             "home": {
               "title": "Home location",
@@ -70,76 +65,83 @@
               }
             },
             "pollingIntervalMinutes": {
-              "title": "Polling interval (minutes)",
+              "title": "Update interval (minutes)",
               "type": "integer",
               "minimum": 4,
               "maximum": 1440,
               "placeholder": 5,
-              "description": "Minimum 4: 20 requests per hour minus 4 kept free for commands."
-            },
-            "commandRefreshDelaySeconds": {
-              "title": "Refresh after command (seconds)",
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 600,
-              "placeholder": 0,
-              "description": "0 (default): no extra request, the next regular update confirms a command. Otherwise the delay (15-600) before one extra refresh after a command."
+              "description": "How often the plugin fetches the vehicle's state. At least 4, default 5: the API allows 20 requests per hour, and 4 are kept free for commands."
             },
             "lowBatteryThreshold": {
-              "title": "Low battery threshold (%)",
+              "title": "Low battery / fuel warning below (%)",
               "type": "integer",
               "minimum": 0,
               "maximum": 100,
               "placeholder": 20,
-              "description": "Battery or fuel level below which HomeKit reports low battery."
+              "description": "HomeKit shows low battery when the battery or fuel level drops below this value. Default 20."
             },
             "climateTemperature": {
-              "title": "Default cabin temperature (°C)",
+              "title": "Default temperature (°C)",
               "type": "number",
               "minimum": 16,
               "maximum": 29.5,
               "multipleOf": 0.5,
               "placeholder": 21,
-              "description": "Used until the vehicle reports its own target temperature."
+              "description": "Used for the first start until the vehicle reports its own target temperature. 16-29.5 in steps of 0.5, default 21."
             },
             "airConditioningWithoutExternalPower": {
-              "title": "Allow air conditioning on battery",
-              "type": "boolean",
-              "description": "Sent with each start. Leave unset to keep the vehicle's setting."
+              "title": "Air conditioning when not plugged in",
+              "type": "string",
+              "oneOf": [
+                {
+                  "title": "Keep the vehicle's setting",
+                  "enum": ["vehicle"]
+                },
+                {
+                  "title": "Allow (uses the drive battery)",
+                  "enum": ["allow"]
+                },
+                {
+                  "title": "Do not allow",
+                  "enum": ["deny"]
+                }
+              ],
+              "placeholder": "vehicle",
+              "description": "For electric vehicles: whether the air conditioning may run from the drive battery when no charging cable is connected."
             },
             "auxiliaryHeatingDurationMinutes": {
-              "title": "Auxiliary heating duration (minutes)",
+              "title": "Auxiliary heating run time (minutes, optional)",
               "type": "integer",
               "minimum": 1,
               "maximum": 60,
-              "description": "Leave empty to use the vehicle's setting."
+              "description": "1-60. Leave empty to use the run time set in the vehicle."
             },
             "features": {
               "title": "Features",
               "type": "object",
               "properties": {
                 "battery": {
-                  "title": "Battery",
+                  "title": "Battery (electric and plug-in hybrid)",
                   "type": "boolean",
                   "default": true
                 },
                 "stateOfChargeSensor": {
-                  "title": "State of charge as humidity sensor (for automations)",
+                  "title": "State of charge as extra sensor, for automations",
                   "type": "boolean",
                   "default": false
                 },
                 "fuelLevel": {
-                  "title": "Fuel level as battery (combustion vehicles)",
+                  "title": "Fuel level as battery (petrol, diesel, CNG, LPG)",
                   "type": "boolean",
                   "default": true
                 },
                 "fuelLevelSensor": {
-                  "title": "Fuel level as humidity sensor (for automations)",
+                  "title": "Fuel level as extra sensor, for automations",
                   "type": "boolean",
                   "default": false
                 },
                 "charging": {
-                  "title": "Charging (outlet)",
+                  "title": "Start / stop charging (outlet)",
                   "type": "boolean",
                   "default": true
                 },
@@ -154,17 +156,17 @@
                   "default": true
                 },
                 "auxiliaryHeating": {
-                  "title": "Auxiliary heating (needs S-PIN)",
+                  "title": "Auxiliary heating (switch, needs S-PIN)",
                   "type": "boolean",
                   "default": true
                 },
                 "activeVentilation": {
-                  "title": "Active ventilation",
+                  "title": "Ventilation (switch)",
                   "type": "boolean",
                   "default": false
                 },
                 "presence": {
-                  "title": "At home (needs home location)",
+                  "title": "\"Home\" sensor (needs home location)",
                   "type": "boolean",
                   "default": true
                 },
@@ -194,12 +196,22 @@
                   "default": true
                 },
                 "lock": {
-                  "title": "Locked (read-only)",
+                  "title": "Locked (sensor)",
                   "type": "boolean",
                   "default": true
                 },
                 "lights": {
-                  "title": "Lights (open = on)",
+                  "title": "Lights on (sensor)",
+                  "type": "boolean",
+                  "default": false
+                },
+                "windowHeating": {
+                  "title": "Window heating on (sensor)",
+                  "type": "boolean",
+                  "default": false
+                },
+                "plugLock": {
+                  "title": "Charging plug locked (sensor)",
                   "type": "boolean",
                   "default": false
                 }
@@ -227,23 +239,84 @@
               "type": "password"
             },
             {
+              "type": "help",
+              "helpvalue": "<p>The plugin detects what your vehicle supports and only creates those services in HomeKit, so you can keep the defaults below. Switches marked <em>sensor</em> or <em>for automations</em> are off by default. After the first update the Homebridge log lists everything your vehicle supports, including what is turned off.</p>"
+            },
+            {
               "type": "fieldset",
-              "title": "Commands",
+              "title": "Doors, windows and lock",
               "expandable": true,
               "expanded": false,
               "items": [
+                "vehicles[].features.doors",
+                "vehicles[].features.windows",
+                "vehicles[].features.trunk",
+                "vehicles[].features.bonnet",
+                "vehicles[].features.sunroof",
+                "vehicles[].features.lock",
+                "vehicles[].features.lights"
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Battery and fuel",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].features.battery",
+                "vehicles[].features.stateOfChargeSensor",
+                "vehicles[].features.fuelLevel",
+                "vehicles[].features.fuelLevelSensor",
                 {
-                  "key": "vehicles[].commandToken",
-                  "type": "password"
+                  "key": "vehicles[].lowBatteryThreshold",
+                  "type": "number"
+                }
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Charging",
+              "description": "Electric and plug-in hybrid vehicles.",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].features.charging",
+                "vehicles[].features.chargingLimit",
+                "vehicles[].features.plugLock"
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Air conditioning and ventilation",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].features.climate",
+                {
+                  "key": "vehicles[].climateTemperature",
+                  "type": "number"
                 },
+                "vehicles[].airConditioningWithoutExternalPower",
+                "vehicles[].features.windowHeating",
+                "vehicles[].features.activeVentilation"
+              ]
+            },
+            {
+              "type": "fieldset",
+              "title": "Auxiliary heating",
+              "description": "Vehicles with a fuel-operated auxiliary heater.",
+              "expandable": true,
+              "expanded": false,
+              "items": [
+                "vehicles[].features.auxiliaryHeating",
                 {
                   "key": "vehicles[].spin",
                   "type": "password"
                 },
-                "vehicles[].commandRefreshDelaySeconds",
-                "vehicles[].climateTemperature",
-                "vehicles[].airConditioningWithoutExternalPower",
-                "vehicles[].auxiliaryHeatingDurationMinutes"
+                {
+                  "key": "vehicles[].auxiliaryHeatingDurationMinutes",
+                  "type": "number"
+                }
               ]
             },
             {
@@ -253,51 +326,38 @@
               "expandable": true,
               "expanded": false,
               "items": [
+                "vehicles[].features.presence",
                 {
                   "type": "flex",
                   "flex-flow": "row wrap",
                   "items": [
-                    "vehicles[].home.lat",
-                    "vehicles[].home.lon",
-                    "vehicles[].home.radiusMeters"
+                    {
+                      "key": "vehicles[].home.lat",
+                      "type": "number"
+                    },
+                    {
+                      "key": "vehicles[].home.lon",
+                      "type": "number"
+                    },
+                    {
+                      "key": "vehicles[].home.radiusMeters",
+                      "type": "number"
+                    }
                   ]
                 }
               ]
             },
             {
               "type": "fieldset",
-              "title": "Polling",
+              "title": "Updates",
+              "description": "The default fits most setups.",
               "expandable": true,
               "expanded": false,
               "items": [
-                "vehicles[].pollingIntervalMinutes",
-                "vehicles[].lowBatteryThreshold"
-              ]
-            },
-            {
-              "type": "fieldset",
-              "title": "Features",
-              "description": "Services are only created if the vehicle supports them.",
-              "expandable": true,
-              "expanded": false,
-              "items": [
-                "vehicles[].features.battery",
-                "vehicles[].features.stateOfChargeSensor",
-                "vehicles[].features.fuelLevel",
-                "vehicles[].features.fuelLevelSensor",
-                "vehicles[].features.charging",
-                "vehicles[].features.chargingLimit",
-                "vehicles[].features.climate",
-                "vehicles[].features.auxiliaryHeating",
-                "vehicles[].features.activeVentilation",
-                "vehicles[].features.presence",
-                "vehicles[].features.doors",
-                "vehicles[].features.windows",
-                "vehicles[].features.trunk",
-                "vehicles[].features.bonnet",
-                "vehicles[].features.sunroof",
-                "vehicles[].features.lock",
-                "vehicles[].features.lights"
+                {
+                  "key": "vehicles[].pollingIntervalMinutes",
+                  "type": "number"
+                }
               ]
             }
           ]

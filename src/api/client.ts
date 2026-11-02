@@ -24,7 +24,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export interface SkodaApiClientOptions {
   token: string;
   vin: string;
-  /** Shared by all clients of the same vehicle, because the rate limit applies per VIN. */
+  /** The vehicle's request budget; the rate limit applies per VIN. */
   budget: RateBudget;
   baseUrl?: string;
   timeoutMs?: number;
@@ -50,11 +50,10 @@ export class SkodaApiClient {
 
   /** `GET /api/v1/vehicles/{vin}` with an explicit `include`, so unsupported parts are reported as errors. */
   async getVehicle(
-    kind: "poll" | "refresh" = "poll",
     parts: readonly VehiclePart[] = VEHICLE_PARTS,
   ): Promise<VehicleResponse> {
     const query = `?include=${parts.map(encodeURIComponent).join(",")}`;
-    const response = await this.request("GET", "", kind, undefined, query);
+    const response = await this.request("GET", "", "poll", undefined, query);
     return (await response.json()) as VehicleResponse;
   }
 

@@ -111,6 +111,21 @@ function fuelLevelSupport(snapshot: VehicleSnapshot): boolean | undefined {
   return fuelLevel(snapshot.vehicle) === undefined ? undefined : true;
 }
 
+function windowHeatingSupport(snapshot: VehicleSnapshot): boolean | undefined {
+  const support = partSupport(snapshot, "airConditioning");
+  if (support !== true) {
+    return support;
+  }
+  const heating = snapshot.vehicle.airConditioning?.windowHeating;
+  const states = [heating?.front, heating?.rear];
+  if (states.every((state) => state === "UNSUPPORTED")) {
+    return false;
+  }
+  return states.some((state) => state === "ON" || state === "OFF")
+    ? true
+    : undefined;
+}
+
 /**
  * Whether the vehicle supports a feature. `undefined` means "cannot tell right now"; callers keep
  * whatever they had, so a transient outage never removes services from HomeKit.
@@ -169,6 +184,18 @@ export function featureSupport(
       return statusFieldSupport(snapshot, (v) => v.status?.detail.sunroof);
     case "lights":
       return statusFieldSupport(snapshot, (v) => v.status?.overall.lights);
+    case "windowHeating":
+      return windowHeatingSupport(snapshot);
+    case "plugLock": {
+      const support = partSupport(snapshot, "charging");
+      if (support !== true) {
+        return support;
+      }
+      // Omitted when the vehicle reports no usable value, which is not "unsupported".
+      return snapshot.vehicle.charging?.status?.plugLockState === undefined
+        ? undefined
+        : true;
+    }
     case "lock":
       return statusFieldSupport(
         snapshot,

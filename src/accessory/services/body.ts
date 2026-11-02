@@ -5,7 +5,8 @@ import type { HomeLocation } from "../../config.js";
 import {
   bodyValues,
   isAtHome,
-  type BodyValues,
+  isPlugLocked,
+  isWindowHeatingOn,
 } from "../../vehicle/mapping.js";
 import {
   ServiceBinding,
@@ -13,35 +14,81 @@ import {
   type ServiceType,
 } from "./common.js";
 
-type BodyFeature = Extract<
+type ContactFeature = Extract<
   keyof FeatureToggles,
-  "doors" | "windows" | "trunk" | "bonnet" | "sunroof" | "lock" | "lights"
+  | "doors"
+  | "windows"
+  | "trunk"
+  | "bonnet"
+  | "sunroof"
+  | "lock"
+  | "lights"
+  | "windowHeating"
+  | "plugLock"
 >;
 
 interface ContactDefinition {
-  feature: BodyFeature;
+  feature: ContactFeature;
   displayName: string;
-  /** `true` means "contact not detected": open, unlocked for the lock sensor, on for the lights. */
-  isOpen: (values: BodyValues) => boolean | undefined;
+  /** `true` means "contact not detected": open, unlocked for the lock sensors, on otherwise. */
+  isOpen: (vehicle: Vehicle) => boolean | undefined;
 }
 
+const negate = (value: boolean | undefined) =>
+  value === undefined ? undefined : !value;
+
 const CONTACTS: readonly ContactDefinition[] = [
-  { feature: "doors", displayName: "Doors", isOpen: (v) => v.doorsOpen },
-  { feature: "windows", displayName: "Windows", isOpen: (v) => v.windowsOpen },
-  { feature: "trunk", displayName: "Trunk", isOpen: (v) => v.trunkOpen },
-  { feature: "bonnet", displayName: "Bonnet", isOpen: (v) => v.bonnetOpen },
-  { feature: "sunroof", displayName: "Sunroof", isOpen: (v) => v.sunroofOpen },
+  {
+    feature: "doors",
+    displayName: "Doors",
+    isOpen: (v) => bodyValues(v).doorsOpen,
+  },
+  {
+    feature: "windows",
+    displayName: "Windows",
+    isOpen: (v) => bodyValues(v).windowsOpen,
+  },
+  {
+    feature: "trunk",
+    displayName: "Trunk",
+    isOpen: (v) => bodyValues(v).trunkOpen,
+  },
+  {
+    feature: "bonnet",
+    displayName: "Bonnet",
+    isOpen: (v) => bodyValues(v).bonnetOpen,
+  },
+  {
+    feature: "sunroof",
+    displayName: "Sunroof",
+    isOpen: (v) => bodyValues(v).sunroofOpen,
+  },
   // The API cannot lock or unlock, so the lock state is a read-only sensor: closed = locked.
   {
     feature: "lock",
     displayName: "Locked",
-    isOpen: (v) => (v.locked === undefined ? undefined : !v.locked),
+    isOpen: (v) => negate(bodyValues(v).locked),
   },
-  { feature: "lights", displayName: "Lights", isOpen: (v) => v.lightsOn },
+  {
+    feature: "lights",
+    displayName: "Lights",
+    isOpen: (v) => bodyValues(v).lightsOn,
+  },
+  // The API has no command for the window heating, so it is a read-only sensor: open = on.
+  {
+    feature: "windowHeating",
+    displayName: "Window Heating",
+    isOpen: isWindowHeatingOn,
+  },
+  {
+    feature: "plugLock",
+    displayName: "Plug Locked",
+    isOpen: (v) => negate(isPlugLocked(v)),
+  },
 ];
 
 export class ContactBinding extends ServiceBinding {
-  readonly feature: BodyFeature;
+  readonly feature: ContactFeature;
   protected readonly serviceType: ServiceType =
     this.ctx.hap.Service.ContactSensor;
   protected readonly subtype: string;
@@ -63,7 +110,7 @@ export class ContactBinding extends ServiceBinding {
 
   protected render(_service: Service, vehicle: Vehicle): void {
     const { ContactSensorState } = this.ctx.hap.Characteristic;
-    const open = this.definition.isOpen(bodyValues(vehicle));
+    const open = this.definition.isOpen(vehicle);
     if (open !== undefined) {
       this.set(
         ContactSensorState,

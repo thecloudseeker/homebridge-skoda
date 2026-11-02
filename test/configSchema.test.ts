@@ -54,7 +54,7 @@ describe("config.schema.json", () => {
 
   it("renders all secrets as password fields", () => {
     const layout = JSON.stringify(schema.layout);
-    for (const key of ["token", "commandToken", "spin"]) {
+    for (const key of ["token", "spin"]) {
       expect(layout).toContain(`{"key":"vehicles[].${key}","type":"password"}`);
     }
   });

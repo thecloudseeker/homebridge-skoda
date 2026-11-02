@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- **Window heating** as an optional read-only contact sensor, open while the front or rear window heating is on (`features.windowHeating`). The API has no command for it.
+- **Charging plug lock** as an optional contact sensor, closed while the cable is locked (`features.plugLock`).
+- **Clearer settings in the Homebridge UI.** Settings are grouped by topic, each next to the feature it belongs to, and numbers are entered in text fields instead of sliders.
+- **Removed `commandToken` and `commandRefreshDelaySeconds`.** A second API key brings no extra requests, because the rate limit applies per vehicle, and the expected state after a command makes an extra refresh unnecessary. The plugin uses the API key for everything and warns once if the old options are still in the config.
+- **The log lists what your vehicle supports** after the first update, including features that are supported but turned off, with the setting that turns them on.
+- `airConditioningWithoutExternalPower` is a choice of "Keep the vehicle's setting", "Allow" (`"allow"`) and "Do not allow" (`"deny"`). Existing `true` / `false` values keep working.
+
 ## 0.2.0
 
 - **Commands cost one request.** HomeKit keeps the expected state until a regular update carries the vehicle's new report of that part, at most 15 minutes, instead of an extra refresh after every command. With the default polling interval, that leaves 8 instead of about 4 commands per hour. `commandRefreshDelaySeconds` now defaults to `0` (no refresh); set it to 15–600 to keep the old behaviour. If you set it explicitly, nothing changes for you.
