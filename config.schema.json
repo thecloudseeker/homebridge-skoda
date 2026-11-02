@@ -89,7 +89,7 @@
               "placeholder": 21,
               "description": "Used for the first start until the vehicle reports its own target temperature. 16-29.5 in steps of 0.5, default 21."
             },
-            "airConditioningWithoutExternalPower": {
+            "airConditioningOnBattery": {
               "title": "Air conditioning when not plugged in",
               "type": "string",
               "oneOf": [
@@ -296,7 +296,7 @@
                   "key": "vehicles[].climateTemperature",
                   "type": "number"
                 },
-                "vehicles[].airConditioningWithoutExternalPower",
+                "vehicles[].airConditioningOnBattery",
                 "vehicles[].features.windowHeating",
                 "vehicles[].features.activeVentilation"
               ]

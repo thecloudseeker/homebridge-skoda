@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- **Fixed:** after updating to 0.3.0, the settings form could mark the config as invalid. The option for air conditioning when not plugged in used to be a checkbox; the 0.3.0 form turned its saved value into the text `"false"` or `"true"`, which the new choice does not accept, and the plugin then ignored it. The option now has a new name, `airConditioningOnBattery` (`"vehicle"`, `"allow"` or `"deny"`). The old `airConditioningWithoutExternalPower` is still read in every form until you choose the option again in the settings; the log reminds you once per start.
+
 ## 0.3.0
 
 - **Window heating** as an optional read-only contact sensor, open while the front or rear window heating is on (`features.windowHeating`). The API has no command for it.

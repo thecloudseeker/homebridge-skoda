@@ -1,7 +1,7 @@
 {
   "name": "@thecloudseeker/homebridge-skoda",
   "displayName": "Homebridge Škoda",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Homebridge plugin for Škoda vehicles using the official MyŠkoda Public API.",
   "author": {
     "name": "thecloudseeker",

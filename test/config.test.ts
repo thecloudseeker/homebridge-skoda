@@ -79,16 +79,40 @@ describe("parseVehicleConfig", () => {
     expect(JSON.stringify(settings)).not.toContain("old-second-key");
   });
 
-  it("reads the air conditioning allowance from the UI select and old booleans", () => {
-    const allowance = (airConditioningWithoutExternalPower: unknown) =>
-      parse({ ...base, airConditioningWithoutExternalPower }).settings
+  it("reads the air conditioning allowance from the settings select", () => {
+    const allowance = (airConditioningOnBattery: unknown) =>
+      parse({ ...base, airConditioningOnBattery }).settings
         .airConditioningWithoutExternalPower;
     expect(allowance("allow")).toBe(true);
     expect(allowance("deny")).toBe(false);
     expect(allowance("vehicle")).toBeUndefined();
     expect(allowance(undefined)).toBeUndefined();
-    expect(allowance(true)).toBe(true);
-    expect(allowance(false)).toBe(false);
+  });
+
+  it("still reads the old option, also as the string the 0.3.0 settings form stored", () => {
+    const legacy = (airConditioningWithoutExternalPower: unknown) =>
+      parse({ ...base, airConditioningWithoutExternalPower });
+    for (const [value, expected] of [
+      [true, true],
+      [false, false],
+      ["true", true],
+      ["false", false],
+      ["deny", false],
+    ] as const) {
+      const { settings, warnings } = legacy(value);
+      expect(settings.airConditioningWithoutExternalPower, String(value)).toBe(
+        expected,
+      );
+      expect(warnings[0]).toContain("replaced by airConditioningOnBattery");
+    }
+    // The new option wins over the old one, without a warning about the leftover.
+    const both = parse({
+      ...base,
+      airConditioningOnBattery: "allow",
+      airConditioningWithoutExternalPower: false,
+    });
+    expect(both.settings.airConditioningWithoutExternalPower).toBe(true);
+    expect(both.warnings).toEqual([]);
   });
 
   it("respects feature toggles", () => {

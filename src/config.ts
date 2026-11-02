@@ -201,6 +201,15 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     0,
     100,
   );
+  if (
+    raw.airConditioningWithoutExternalPower !== undefined &&
+    raw.airConditioningOnBattery === undefined
+  ) {
+    warnings.push(
+      `${label}.airConditioningWithoutExternalPower is replaced by airConditioningOnBattery. ` +
+        'Its value is still used; choose "Air conditioning when not plugged in" again in the settings to update the config',
+    );
+  }
   for (const removed of REMOVED_OPTIONS) {
     if (raw[removed] !== undefined) {
       warnings.push(
@@ -228,9 +237,9 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
       pollingIntervalMinutes,
       lowBatteryThreshold,
       climateTemperature,
-      airConditioningWithoutExternalPower: parseAllowance(
-        raw.airConditioningWithoutExternalPower,
-      ),
+      airConditioningWithoutExternalPower:
+        parseAllowance(raw.airConditioningOnBattery) ??
+        parseAllowance(raw.airConditioningWithoutExternalPower),
       auxiliaryHeatingDurationMinutes:
         auxiliaryHeatingDuration === undefined
           ? undefined
@@ -268,15 +277,19 @@ function parseHome(
   return { latitude, longitude, radiusMeters };
 }
 
-/** `"allow"` / `"deny"` from the Homebridge UI, or a boolean from configs written before 0.3.0. */
+/**
+ * `"allow"` / `"deny"` from the Homebridge UI. Before 0.3.1 the option was the boolean
+ * `airConditioningWithoutExternalPower`, which the 0.3.0 settings form turned into `"true"` or
+ * `"false"`; both forms are still read.
+ */
 function parseAllowance(value: unknown): boolean | undefined {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (value === "allow") {
+  if (value === true || value === "allow" || value === "true") {
     return true;
   }
-  return value === "deny" ? false : undefined;
+  if (value === false || value === "deny" || value === "false") {
+    return false;
+  }
+  return undefined;
 }
 
 function clamp(value: number, min: number, max: number): number {
