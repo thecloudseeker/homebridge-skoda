@@ -13,37 +13,19 @@ than in a release:
 
 Each release lists the questions that have to be answered before or during its work.
 
-## 0.4.0: Safer config handling and automations
+## Open questions from 0.4.0
 
-- **Keep the vehicle when its config entry is invalid.** Today an entry that fails to parse, for
-  example an empty API key while a key is being replaced, is skipped, and its cached accessory is
-  unregistered. That removes the vehicle from HomeKit with its rooms, names and automations.
-  - If the entry still has a valid VIN, keep the cached accessory, log an error and do not poll.
-  - Only unregister vehicles whose VIN is no longer in the config at all.
-  - Test: a cached vehicle with an empty key stays registered. (`src/platform.ts`)
-- **"Plugged In" sensor for automations.** The cable state is only shown as _Outlet In Use_ on the
-  charging outlet, which the Home app does not offer as an automation trigger (see open questions).
-  - Add an optional contact sensor `features.pluggedIn`: _open_ = cable plugged in, from
-    `charging.status.plugConnectionState`.
-  - Create it only for vehicles that support charging. A contact sensor also maps to Matter.
-- **Plug Locked only while connected.** Without a cable the vehicle most likely reports
-  `UNLOCKED`, so the sensor would show _open_ after every unplug.
-  - Report _open_ only while `plugConnectionState` is `CONNECTED`, _closed_ otherwise.
-  - Verify with a vehicle that charges before release.
-- **Name the real cause in the support log.** Without an S-PIN or home location, auxiliary heating
-  and the "Home" sensor are turned off automatically, but the log points to the feature switch
-  (`features.auxiliaryHeating`, `features.presence`). Name the missing S-PIN or home location
-  instead.
-
-Open questions:
+0.4.0 is in beta (see the [changelog](../CHANGELOG.md)). These questions are still open:
 
 - **Does the settings form look right in the real Homebridge UI?** Number fields instead of
   sliders, the three-way choice for air conditioning when not plugged in, and the note at the top.
   Answer: open the plugin settings in a Homebridge with the current release.
 - **Does the Home app really offer no automation trigger for _Outlet In Use_?** Answer: try to
   create the automation in the Home app. If it does offer one, the "Plugged In" sensor is optional.
-- **What does `plugLockState` report without a cable?** Answer: debug log from a vehicle that
-  charges.
+- **What does `plugLockState` report without a cable?** 0.4.0 assumes `UNLOCKED` and ignores the
+  lock state while unplugged. Answer: debug log from a vehicle that charges.
+- **How often is a plugged-in cable unlocked while not charging?** With automatic unlocking after
+  charging, "Plug Locked" could be open most of the time. Answer: the same debug log.
 
 ## 0.5.0: Charge limit presets
 
@@ -63,18 +45,34 @@ Open questions:
 - **Close test gaps:**
   - the air conditioning restart when the temperature changes while running (stop, 10 s pause,
     start, two requests)
-  - unregistering a vehicle that was removed from the config
   - turning the charge limit off (until 0.5.0 removes it)
   - the 15-minute limit of the expected state, seen from the accessory
   - add a coverage report to CI
+  - configs as earlier versions really saved them, taken from users' config.json files, instead of
+    hand-written examples in the schema test
 - **Verify the expected state after commands.** The plugin keeps the expected state until the
   vehicle's `carCapturedTimestamp` for that part moves past the time of the command, for at most
   15 minutes. The API documents the timestamp, but it is not confirmed with a real electric
   vehicle that it moves after a command.
-  - Log the timestamps before and after each command at debug level, and collect results from
-    users with electric vehicles.
+  - Since 0.4.0 each update logs the captured times at debug level ("Reported: …"), next to the
+    info line of each accepted command. Collect these logs from users with electric vehicles.
   - Tune the 15 minutes. Today a command the vehicle accepts but does not carry out, for example
     starting to charge without a cable, shows the wrong state for up to 15 minutes.
+
+- **Show stale data on the controls too.** Only the sensors show a fault when the data is older
+  than three polling intervals. The charging outlet, the switches, the heater cooler and the battery
+  keep their last state without any hint. Answer reads and writes with "No Response" while the
+  data is stale, as for a vehicle whose config entry is invalid.
+- **Measure the timings** that are estimates today: the 15 minutes above, the two updates before a
+  service is removed, the 10 s pause when the air conditioning restarts, and the 3 s slider delay.
+- **Clean-ups:**
+  - Split `VehicleController`: polling and backoff on one side, commands and the expected state on
+    the other. It has grown to about 400 lines.
+  - Cancel waiting commands (debounced charge limit, air conditioning restart) when Homebridge shuts
+    down; `stop()` only clears the poll timers.
+  - Give back the slot of the refunded request in `RateBudget.refund()`, not the newest one. With
+    a poll and a command at the same time the window is off by a few seconds.
+  - Drop the key label of `noteKeyExpiry()`; there is only one API key since 0.3.0.
 
 Open questions:
 
@@ -89,7 +87,8 @@ when `api.isMatterEnabled()` is true, next to the HomeKit accessory.
 
 | Service                                              | Matter device type                    | Fit                                                                     |
 | ---------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| Contact sensors (body, lock, lights, plug, heating)  | Contact Sensor                        | Clean                                                                   |
+| Contact sensors (body, lights, plug, heating)        | Contact Sensor                        | Clean                                                                   |
+| Lock (read-only)                                     | Door Lock                             | Check whether a read-only lock is possible                              |
 | "Home"                                               | Occupancy Sensor                      | Clean                                                                   |
 | Charging                                             | On/Off Plug-in Unit (`OnOffOutlet`)   | Clean                                                                   |
 | Air conditioning                                     | Thermostat (heating and cooling)      | Mostly: there is no cabin temperature, and the mode is always automatic |

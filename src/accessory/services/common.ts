@@ -21,7 +21,7 @@ type HapStatus = ConstructorParameters<HAP["HapStatusError"]>[0];
 
 /** `HAPStatus.SERVICE_COMMUNICATION_FAILURE` ("No Response"); the enum is const and type-only here. */
 // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- ambient const enum cannot be referenced
-const SERVICE_COMMUNICATION_FAILURE = -70402 as HapStatus;
+export const SERVICE_COMMUNICATION_FAILURE = -70402 as HapStatus;
 type CharacteristicType = Parameters<Service["updateCharacteristic"]>[0];
 
 export interface BindingContext {

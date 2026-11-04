@@ -137,6 +137,7 @@ export function featureSupport(
   switch (feature) {
     case "battery":
     case "stateOfChargeSensor":
+    case "pluggedIn":
       return partSupport(snapshot, "charging");
     case "fuelLevel": {
       // Vehicles with a high-voltage battery show it in the battery service instead.

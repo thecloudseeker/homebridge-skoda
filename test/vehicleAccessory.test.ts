@@ -41,7 +41,11 @@ function settingsFor(overrides: Record<string, unknown> = {}): VehicleSettings {
   return result.settings;
 }
 
-function setup(responses: Response[], settings = settingsFor()) {
+function setup(
+  responses: Response[],
+  settings = settingsFor(),
+  prepare?: (accessory: PlatformAccessory) => void,
+) {
   const queue = [...responses];
   const fetch = vi.fn<typeof globalThis.fetch>((_url, init) =>
     Promise.resolve(
@@ -67,6 +71,7 @@ function setup(responses: Response[], settings = settingsFor()) {
     "Enyaq",
     hap.uuid.generate(TEST_VIN),
   ) as unknown as PlatformAccessory;
+  prepare?.(accessory);
   const onServicesChanged = vi.fn();
   new VehicleAccessory({
     hap,
@@ -186,11 +191,45 @@ describe("VehicleAccessory", () => {
     expect(
       value(
         accessory,
-        Service.ContactSensor,
+        Service.LockMechanism,
         "lock",
-        Characteristic.ContactSensorState,
+        Characteristic.LockCurrentState,
       ),
-    ).toBe(Characteristic.ContactSensorState.CONTACT_DETECTED);
+    ).toBe(Characteristic.LockCurrentState.SECURED);
+    controller.stop();
+  });
+
+  it("shows the lock state as a lock that cannot be unlocked", async () => {
+    const { accessory, controller } = setup([]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const target = accessory
+      .getServiceById(Service.LockMechanism, "lock")!
+      .getCharacteristic(Characteristic.LockTargetState);
+    expect(target.value).toBe(Characteristic.LockTargetState.SECURED);
+    // Without the write permission HAP answers writes with "read-only characteristic".
+    expect(target.props.perms).not.toContain("pw");
+    controller.stop();
+  });
+
+  it("replaces the cached Locked contact sensor of 0.3.x with the lock", async () => {
+    const { accessory, controller, onServicesChanged } = setup(
+      [],
+      settingsFor(),
+      (cached) => {
+        cached.addService(Service.ContactSensor, "Locked", "lock");
+      },
+    );
+    expect(accessory.getServiceById(Service.ContactSensor, "lock")).toBe(
+      undefined,
+    );
+    expect(onServicesChanged).toHaveBeenCalled();
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(
+      accessory.getServiceById(Service.LockMechanism, "lock"),
+    ).toBeDefined();
     controller.stop();
   });
 
@@ -242,6 +281,64 @@ describe("VehicleAccessory", () => {
       );
     expect(state("windowHeating")).toBe(CONTACT_NOT_DETECTED);
     expect(state("plugLock")).toBe(CONTACT_DETECTED);
+    controller.stop();
+  });
+
+  it("shows the cable as plugged in, and a plug lock only while plugged in", async () => {
+    const unplugged = loadFixture("enyaq");
+    unplugged.vehicle.charging!.status!.plugConnectionState = "DISCONNECTED";
+    unplugged.vehicle.charging!.status!.plugLockState = "UNLOCKED";
+    const { accessory, controller } = setup(
+      [
+        mockResponse({ body: loadFixture("enyaq") }),
+        mockResponse({ body: unplugged }),
+      ],
+      settingsFor({ features: { pluggedIn: true, plugLock: true } }),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const { OCCUPANCY_DETECTED, OCCUPANCY_NOT_DETECTED } =
+      Characteristic.OccupancyDetected;
+    const { CONTACT_DETECTED } = Characteristic.ContactSensorState;
+    const pluggedIn = () =>
+      value(
+        accessory,
+        Service.OccupancySensor,
+        "plugged-in",
+        Characteristic.OccupancyDetected,
+      );
+    const plugLock = () =>
+      value(
+        accessory,
+        Service.ContactSensor,
+        "plugLock",
+        Characteristic.ContactSensorState,
+      );
+    expect(pluggedIn()).toBe(OCCUPANCY_DETECTED);
+    expect(plugLock()).toBe(CONTACT_DETECTED);
+
+    // Unplugged: the vehicle reports the plug unlocked, which is no reason to alert.
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(pluggedIn()).toBe(OCCUPANCY_NOT_DETECTED);
+    expect(plugLock()).toBe(CONTACT_DETECTED);
+    controller.stop();
+  });
+
+  it("names a missing S-PIN or home location in the support log", async () => {
+    const { controller, fetch, log } = setup(
+      [],
+      settingsFor({ spin: "", home: undefined }),
+    );
+    fetch.mockImplementation(() =>
+      Promise.resolve(mockResponse({ body: loadFixture("combustion") })),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const summary = log.info.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.startsWith("Supported by the vehicle"));
+    expect(summary).toContain("Auxiliary Heating (needs the S-PIN)");
+    expect(summary).toContain("Home (needs the home location)");
     controller.stop();
   });
 

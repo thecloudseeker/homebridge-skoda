@@ -3,7 +3,7 @@
   "pluginType": "platform",
   "singular": true,
   "strictValidation": false,
-  "headerDisplay": "Connects Škoda vehicles through the official **MyŠkoda Public API**. Create an API key in the MyŠkoda app under *Profile › Smart Home* (or open [go.skoda.eu/api-keys](https://go.skoda.eu/api-keys) on your phone). The API allows **20 requests per hour per vehicle**, so data is polled every few minutes and commands take a moment to show up. This is not an official Škoda project.",
+  "headerDisplay": "Škoda vehicles via the official **MyŠkoda Public API**. Create an API key in the MyŠkoda app under *Profile › Smart Home*. Not an official Škoda project.",
   "footerDisplay": "See the [README](https://github.com/thecloudseeker/homebridge-skoda#readme) for details on each feature.",
   "schema": {
     "type": "object",
@@ -18,7 +18,7 @@
               "title": "Name",
               "type": "string",
               "placeholder": "Enyaq",
-              "description": "Name of the accessory in HomeKit."
+              "description": "Name in HomeKit."
             },
             "vin": {
               "title": "VIN",
@@ -27,18 +27,18 @@
               "minLength": 17,
               "maxLength": 17,
               "pattern": "^[A-HJ-NPR-Za-hj-npr-z0-9]{17}$",
-              "description": "17-character vehicle identification number."
+              "description": "17 characters."
             },
             "token": {
               "title": "API key",
               "type": "string",
               "required": true,
-              "description": "API key from the MyŠkoda app (Profile › Smart Home). Used for reading the vehicle and for commands."
+              "description": "From the MyŠkoda app, Profile › Smart Home."
             },
             "spin": {
               "title": "S-PIN (optional)",
               "type": "string",
-              "description": "Security PIN of your MyŠkoda account. Only needed to start the auxiliary heating; it is sent with each start and never logged."
+              "description": "Only for the auxiliary heating. Never logged."
             },
             "home": {
               "title": "Home location",
@@ -48,19 +48,22 @@
                   "title": "Latitude",
                   "type": "number",
                   "minimum": -90,
-                  "maximum": 90
+                  "maximum": 90,
+                  "description": "e.g. 50.4128"
                 },
                 "lon": {
                   "title": "Longitude",
                   "type": "number",
                   "minimum": -180,
-                  "maximum": 180
+                  "maximum": 180,
+                  "description": "e.g. 14.9069"
                 },
                 "radiusMeters": {
                   "title": "Radius (m)",
                   "type": "integer",
                   "minimum": 10,
-                  "placeholder": 150
+                  "placeholder": 150,
+                  "description": "Default 150."
                 }
               }
             },
@@ -70,7 +73,7 @@
               "minimum": 4,
               "maximum": 1440,
               "placeholder": 5,
-              "description": "How often the plugin fetches the vehicle's state. At least 4, default 5: the API allows 20 requests per hour, and 4 are kept free for commands."
+              "description": "Minimum 4, default 5. The API allows 20 requests per hour."
             },
             "lowBatteryThreshold": {
               "title": "Low battery / fuel warning below (%)",
@@ -78,7 +81,7 @@
               "minimum": 0,
               "maximum": 100,
               "placeholder": 20,
-              "description": "HomeKit shows low battery when the battery or fuel level drops below this value. Default 20."
+              "description": "Default 20."
             },
             "climateTemperature": {
               "title": "Default temperature (°C)",
@@ -87,7 +90,7 @@
               "maximum": 29.5,
               "multipleOf": 0.5,
               "placeholder": 21,
-              "description": "Used for the first start until the vehicle reports its own target temperature. 16-29.5 in steps of 0.5, default 21."
+              "description": "Until the vehicle reports its own. 16–29.5, default 21."
             },
             "airConditioningOnBattery": {
               "title": "Air conditioning when not plugged in",
@@ -107,14 +110,14 @@
                 }
               ],
               "placeholder": "vehicle",
-              "description": "For electric vehicles: whether the air conditioning may run from the drive battery when no charging cable is connected."
+              "description": "Electric vehicles: run the air conditioning from the drive battery."
             },
             "auxiliaryHeatingDurationMinutes": {
               "title": "Auxiliary heating run time (minutes, optional)",
               "type": "integer",
               "minimum": 1,
               "maximum": 60,
-              "description": "1-60. Leave empty to use the run time set in the vehicle."
+              "description": "1–60. Empty uses the vehicle setting."
             },
             "features": {
               "title": "Features",
@@ -123,97 +126,122 @@
                 "battery": {
                   "title": "Battery (electric and plug-in hybrid)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Level, charging state, low warning."
                 },
                 "stateOfChargeSensor": {
                   "title": "State of charge as extra sensor, for automations",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Humidity sensor in %. Counts as the room's humidity."
                 },
                 "fuelLevel": {
                   "title": "Fuel level as battery (petrol, diesel, CNG, LPG)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Shown as a battery, as HomeKit has no fuel service."
                 },
                 "fuelLevelSensor": {
                   "title": "Fuel level as extra sensor, for automations",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Humidity sensor in %. Counts as the room's humidity."
                 },
                 "charging": {
                   "title": "Start / stop charging (outlet)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Outlet: on starts, off stops charging."
                 },
                 "chargingLimit": {
                   "title": "Charge limit (lightbulb brightness)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Brightness = limit, 50–100 %."
                 },
                 "climate": {
                   "title": "Air conditioning (heater cooler)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Start and stop at the target temperature."
                 },
                 "auxiliaryHeating": {
                   "title": "Auxiliary heating (switch, needs S-PIN)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Start and stop. Needs the S-PIN."
                 },
                 "activeVentilation": {
                   "title": "Ventilation (switch)",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Start and stop the ventilation."
                 },
                 "presence": {
                   "title": "\"Home\" sensor (needs home location)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Detected while parked at home. Counts as presence in the room."
                 },
                 "doors": {
                   "title": "Doors",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Open while a door is open."
                 },
                 "windows": {
                   "title": "Windows",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Open while a window is open."
                 },
                 "trunk": {
                   "title": "Trunk",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Open while the trunk is open."
                 },
                 "bonnet": {
                   "title": "Bonnet",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Open while the bonnet is open."
                 },
                 "sunroof": {
                   "title": "Sunroof",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Open while the sunroof is open."
                 },
                 "lock": {
-                  "title": "Locked (sensor)",
+                  "title": "Locked (lock, read-only)",
                   "type": "boolean",
-                  "default": true
+                  "default": true,
+                  "description": "Locked or unlocked. Cannot lock or unlock."
                 },
                 "lights": {
                   "title": "Lights on (sensor)",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Open while the lights are on."
                 },
                 "windowHeating": {
                   "title": "Window heating on (sensor)",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Open while on. Read-only."
                 },
                 "plugLock": {
                   "title": "Charging plug locked (sensor)",
                   "type": "boolean",
-                  "default": false
+                  "default": false,
+                  "description": "Open while a plugged-in cable is unlocked."
+                },
+                "pluggedIn": {
+                  "title": "Plugged in (sensor, for automations)",
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Detected while the cable is plugged in. Counts as presence in the room."
                 }
               }
             }
@@ -240,7 +268,7 @@
             },
             {
               "type": "help",
-              "helpvalue": "<p>The plugin detects what your vehicle supports and only creates those services in HomeKit, so you can keep the defaults below. Switches marked <em>sensor</em> or <em>for automations</em> are off by default. After the first update the Homebridge log lists everything your vehicle supports, including what is turned off.</p>"
+              "helpvalue": "<p>Only services your vehicle supports are created, so the defaults are fine. The log lists what your vehicle supports.</p>"
             },
             {
               "type": "fieldset",
@@ -255,7 +283,8 @@
                 "vehicles[].features.sunroof",
                 "vehicles[].features.lock",
                 "vehicles[].features.lights"
-              ]
+              ],
+              "description": "Read-only sensors."
             },
             {
               "type": "fieldset",
@@ -271,7 +300,8 @@
                   "key": "vehicles[].lowBatteryThreshold",
                   "type": "number"
                 }
-              ]
+              ],
+              "description": "Battery for electric vehicles, fuel level for combustion engines."
             },
             {
               "type": "fieldset",
@@ -282,6 +312,7 @@
               "items": [
                 "vehicles[].features.charging",
                 "vehicles[].features.chargingLimit",
+                "vehicles[].features.pluggedIn",
                 "vehicles[].features.plugLock"
               ]
             },
@@ -299,12 +330,13 @@
                 "vehicles[].airConditioningOnBattery",
                 "vehicles[].features.windowHeating",
                 "vehicles[].features.activeVentilation"
-              ]
+              ],
+              "description": "Remote climate control."
             },
             {
               "type": "fieldset",
               "title": "Auxiliary heating",
-              "description": "Vehicles with a fuel-operated auxiliary heater.",
+              "description": "Vehicles with a fuel-operated heater.",
               "expandable": true,
               "expanded": false,
               "items": [
@@ -322,7 +354,7 @@
             {
               "type": "fieldset",
               "title": "Home location",
-              "description": "Used for the \"Home\" occupancy sensor.",
+              "description": "For the \"Home\" sensor.",
               "expandable": true,
               "expanded": false,
               "items": [

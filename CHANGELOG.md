@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0-beta.1
+
+- **Fixed:** a vehicle whose config entry became invalid, for example with an empty API key while the key was being replaced, was removed from HomeKit with its rooms, names and automations. If the entry still has a valid VIN, the vehicle now stays in HomeKit and shows "No Response" until the entry is fixed; the log says so.
+- **"Plugged In" sensor** for automations: an optional occupancy sensor that detects a plugged-in charging cable (`features.pluggedIn`). The cable state on the charging outlet (_Outlet In Use_) cannot trigger automations in the Home app.
+- **"Locked" is now a lock**, so the Home app says _locked_ or _unlocked_ instead of _closed_ or _open_. It is read-only: changing it in the Home app fails right away. The contact sensor of 0.3.x is replaced, so automations that used it need to be set up again.
+- The README explains the room summary and _Show as Separate Tiles_ in the Home app.
+- **Renaming a vehicle** in the config now renames it in Homebridge and HomeKit. Before, a vehicle kept the name it had when it was first added. The Home app may keep a name you set there yourself.
+- **Plug Locked** no longer shows _open_ while no cable is plugged in. Without a cable the vehicle reports the plug as unlocked, which would trigger an alert after every unplug.
+- The log line listing what the vehicle supports names a missing S-PIN or home location, instead of the feature switch, for auxiliary heating and the "Home" sensor.
+- **Debug log:** each update logs what the vehicle reported for charging (state, cable, plug lock, limit, automatic unlock), air conditioning, auxiliary heating, ventilation and the lock, each with the time the vehicle captured it. No VIN, no position. This helps answer open questions with electric vehicles.
+- When the vehicle declines a command, the log mentions a low 12 V battery as a possible cause, as the API documentation does.
+
 ## 0.3.1
 
 - **Fixed:** after updating to 0.3.0, the settings form could mark the config as invalid. The option for air conditioning when not plugged in used to be a checkbox; the 0.3.0 form turned its saved value into the text `"false"` or `"true"`, which the new choice does not accept, and the plugin then ignored it. The option now has a new name, `airConditioningOnBattery` (`"vehicle"`, `"allow"` or `"deny"`). The old `airConditioningWithoutExternalPower` is still read in every form until you choose the option again in the settings; the log reminds you once per start.

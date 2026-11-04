@@ -1,10 +1,11 @@
-import type { Service } from "homebridge";
+import type { Characteristic, Service } from "homebridge";
 import type { Vehicle } from "../../api/types.js";
 import type { FeatureToggles } from "../../config.js";
 import type { HomeLocation } from "../../config.js";
 import {
   bodyValues,
   isAtHome,
+  isPlugConnected,
   isPlugLocked,
   isWindowHeatingOn,
 } from "../../vehicle/mapping.js";
@@ -21,7 +22,6 @@ type ContactFeature = Extract<
   | "trunk"
   | "bonnet"
   | "sunroof"
-  | "lock"
   | "lights"
   | "windowHeating"
   | "plugLock"
@@ -63,12 +63,6 @@ const CONTACTS: readonly ContactDefinition[] = [
     displayName: "Sunroof",
     isOpen: (v) => bodyValues(v).sunroofOpen,
   },
-  // The API cannot lock or unlock, so the lock state is a read-only sensor: closed = locked.
-  {
-    feature: "lock",
-    displayName: "Locked",
-    isOpen: (v) => negate(bodyValues(v).locked),
-  },
   {
     feature: "lights",
     displayName: "Lights",
@@ -80,10 +74,12 @@ const CONTACTS: readonly ContactDefinition[] = [
     displayName: "Window Heating",
     isOpen: isWindowHeatingOn,
   },
+  // Without a cable the plug is reported unlocked; only an unlocked cable that is plugged in is open.
   {
     feature: "plugLock",
     displayName: "Plug Locked",
-    isOpen: (v) => negate(isPlugLocked(v)),
+    isOpen: (v) =>
+      isPlugConnected(v) === false ? false : negate(isPlugLocked(v)),
   },
 ];
 
@@ -122,8 +118,95 @@ export class ContactBinding extends ServiceBinding {
   }
 }
 
-export function contactBindings(ctx: BindingContext): ContactBinding[] {
-  return CONTACTS.map((definition) => new ContactBinding(ctx, definition));
+/** The contact sensors, with the lock after the sunroof so the support log keeps its order. */
+export function contactBindings(ctx: BindingContext): ServiceBinding[] {
+  const bindings: ServiceBinding[] = CONTACTS.map(
+    (definition) => new ContactBinding(ctx, definition),
+  );
+  const afterSunroof =
+    CONTACTS.findIndex((definition) => definition.feature === "sunroof") + 1;
+  bindings.splice(afterSunroof, 0, new LockBinding(ctx));
+  return bindings;
+}
+
+type Perms = NonNullable<Parameters<Characteristic["setProps"]>[0]["perms"]>;
+/** `Perms.PAIRED_READ` and `Perms.NOTIFY`, without `PAIRED_WRITE`; the enum is const and type-only here. */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- ambient const enum cannot be referenced
+const READ_AND_NOTIFY = ["pr", "ev"] as Perms;
+
+/**
+ * Lock "Locked": shows "locked" or "unlocked" with a lock icon. The API cannot lock or unlock, so
+ * the target state is read-only and HomeKit answers writes with "read-only characteristic". It
+ * replaces the "Locked" contact sensor of 0.3.x (subtype "lock"), see `removeLegacyLockSensor`.
+ */
+export class LockBinding extends ServiceBinding {
+  readonly feature = "lock";
+  protected readonly serviceType: ServiceType =
+    this.ctx.hap.Service.LockMechanism;
+  protected readonly subtype = "lock";
+  protected readonly displayName = "Locked";
+
+  protected override configure(service: Service): void {
+    service
+      .getCharacteristic(this.ctx.hap.Characteristic.LockTargetState)
+      .setProps({ perms: READ_AND_NOTIFY });
+  }
+
+  protected render(_service: Service, vehicle: Vehicle): void {
+    const { LockCurrentState, LockTargetState } = this.ctx.hap.Characteristic;
+    const locked = bodyValues(vehicle).locked;
+    if (locked === undefined) {
+      return;
+    }
+    this.set(
+      LockCurrentState,
+      locked ? LockCurrentState.SECURED : LockCurrentState.UNSECURED,
+    );
+    this.set(
+      LockTargetState,
+      locked ? LockTargetState.SECURED : LockTargetState.UNSECURED,
+    );
+  }
+}
+
+/** Removes the "Locked" contact sensor of 0.3.x, which `LockBinding` replaces. Returns whether it existed. */
+export function removeLegacyLockSensor(ctx: BindingContext): boolean {
+  const legacy = ctx.accessory.getServiceById(
+    ctx.hap.Service.ContactSensor,
+    "lock",
+  );
+  if (!legacy) {
+    return false;
+  }
+  ctx.accessory.removeService(legacy);
+  ctx.log.info('Replaced the "Locked" contact sensor with a lock');
+  return true;
+}
+
+/** Occupancy sensor "Plugged In": detected while the charging cable is plugged in, for automations. */
+export class PluggedInBinding extends ServiceBinding {
+  readonly feature = "pluggedIn";
+  protected readonly serviceType: ServiceType =
+    this.ctx.hap.Service.OccupancySensor;
+  protected readonly subtype = "plugged-in";
+  protected readonly displayName = "Plugged In";
+
+  protected override get hasStatusFault(): boolean {
+    return true;
+  }
+
+  protected render(_service: Service, vehicle: Vehicle): void {
+    const { OccupancyDetected } = this.ctx.hap.Characteristic;
+    const pluggedIn = isPlugConnected(vehicle);
+    if (pluggedIn !== undefined) {
+      this.set(
+        OccupancyDetected,
+        pluggedIn
+          ? OccupancyDetected.OCCUPANCY_DETECTED
+          : OccupancyDetected.OCCUPANCY_NOT_DETECTED,
+      );
+    }
+  }
 }
 
 /** Occupancy sensor "Home": parked within the configured radius around the home coordinates. */

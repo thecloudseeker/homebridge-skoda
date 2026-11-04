@@ -23,7 +23,8 @@ import {
   mergeSnapshot,
   type VehicleSnapshot,
 } from "../src/vehicle/snapshot.js";
-import { loadFixture } from "./helpers.js";
+import { describeReport } from "../src/vehicle/mapping.js";
+import { loadFixture, TEST_VIN } from "./helpers.js";
 
 const enyaq = loadFixture("enyaq");
 const combustion = loadFixture("combustion");
@@ -303,6 +304,7 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "lights")).toBe(true);
     expect(featureSupport(snapshot, "windowHeating")).toBe(true);
     expect(featureSupport(snapshot, "plugLock")).toBe(true);
+    expect(featureSupport(snapshot, "pluggedIn")).toBe(true);
     expect(featureSupport(snapshot, "fuelLevel")).toBe(false);
     expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(false);
   });
@@ -318,6 +320,7 @@ describe("feature support", () => {
     expect(featureSupport(snapshot, "fuelLevelSensor")).toBe(true);
     expect(featureSupport(snapshot, "windowHeating")).toBe(false);
     expect(featureSupport(snapshot, "plugLock")).toBe(false);
+    expect(featureSupport(snapshot, "pluggedIn")).toBe(false);
   });
 
   it("treats window heating without front and rear support as unsupported", () => {
@@ -415,6 +418,7 @@ describe("anonymized live response of a gasoline vehicle", () => {
         "lights",
         "windowHeating",
         "plugLock",
+        "pluggedIn",
       ] as const
     ).filter((feature) => featureSupport(snapshot, feature));
     expect(supported).toEqual([
@@ -462,5 +466,35 @@ describe("ventilation started in the MyŠkoda app (observed live)", () => {
       durationInSeconds: 600,
     };
     expect(isActiveVentilationOn(live.vehicle)).toBe(true);
+  });
+});
+
+describe("debug report", () => {
+  it("lists the charging and climate values with their capture times, without VIN or position", () => {
+    const { vehicle } = loadFixture("enyaq");
+    const report = describeReport(vehicle);
+    expect(report).toMatch(/^charging state=\S+ cable=\S+/);
+    expect(report).toContain("plugLock=");
+    expect(report).toContain("airConditioning state=");
+    expect(report).not.toContain(TEST_VIN);
+    expect(report).not.toMatch(/latitude|longitude|gps/i);
+  });
+
+  it("leaves out parts the vehicle did not report", () => {
+    expect(describeReport({})).toBe("nothing");
+    expect(
+      describeReport({
+        charging: {
+          isVehicleInSavedLocation: false,
+          status: {
+            plugConnectionState: "DISCONNECTED",
+            plugLockState: "UNLOCKED",
+          },
+          carCapturedTimestamp: "2026-11-03T10:00:00Z",
+        },
+      }),
+    ).toBe(
+      "charging cable=DISCONNECTED plugLock=UNLOCKED captured=2026-11-03T10:00:00Z",
+    );
   });
 });

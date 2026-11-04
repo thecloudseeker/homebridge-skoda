@@ -39,6 +39,8 @@ export interface FeatureToggles {
   windowHeating: boolean;
   /** Contact sensor that is closed while the charging cable is locked. */
   plugLock: boolean;
+  /** Occupancy sensor that detects a plugged-in charging cable, for automations. */
+  pluggedIn: boolean;
 }
 
 export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
@@ -61,6 +63,7 @@ export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
   lights: false,
   windowHeating: false,
   plugLock: false,
+  pluggedIn: false,
 };
 
 export interface HomeLocation {
@@ -134,6 +137,19 @@ function optionalNumber(value: unknown): number | undefined {
 }
 
 /** Validates and normalizes one entry of the `vehicles` array. Error messages never contain secrets. */
+/** The normalized VIN of a config entry, or undefined when it is missing or invalid. */
+export function configuredVin(raw: unknown): string | undefined {
+  if (!isObject(raw)) {
+    return undefined;
+  }
+  const vin = normalizeVin(raw.vin);
+  return vin && VIN_PATTERN.test(vin) ? vin : undefined;
+}
+
+function normalizeVin(value: unknown): string | undefined {
+  return optionalString(value)?.toUpperCase().replace(/\s+/g, "");
+}
+
 export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
   const label = `vehicles[${index}]`;
   if (!isObject(raw)) {
@@ -142,7 +158,7 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  const vin = optionalString(raw.vin)?.toUpperCase().replace(/\s+/g, "");
+  const vin = normalizeVin(raw.vin);
   if (!vin) {
     errors.push(`${label}.vin is missing`);
   } else if (!VIN_PATTERN.test(vin)) {

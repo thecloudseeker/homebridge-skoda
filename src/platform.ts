@@ -7,8 +7,15 @@ import type {
 } from "homebridge";
 import { SkodaApiClient } from "./api/client.js";
 import { DEFAULT_RATE_LIMIT, RateBudget } from "./api/rateBudget.js";
-import { parseVehicleConfig, type VehicleSettings } from "./config.js";
-import { VehicleAccessory } from "./accessory/vehicleAccessory.js";
+import {
+  configuredVin,
+  parseVehicleConfig,
+  type VehicleSettings,
+} from "./config.js";
+import {
+  VehicleAccessory,
+  markUnavailable,
+} from "./accessory/vehicleAccessory.js";
 import { PLATFORM_NAME, PLUGIN_NAME, PLUGIN_VERSION } from "./settings.js";
 import { createVehicleLogger, type Logger } from "./util/logger.js";
 import { maskVin } from "./util/redact.js";
@@ -52,6 +59,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
         for (const error of result.errors) {
           this.log.error(`Skipping vehicle: ${error}`);
         }
+        this.keepCachedVehicle(raw, index, activeUuids);
         return;
       }
       const { settings } = result;
@@ -86,6 +94,45 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     }
   }
 
+  /**
+   * An entry that cannot be used, e.g. with an empty API key while the key is being replaced,
+   * still names its vehicle. Its cached accessory stays registered, so HomeKit keeps the rooms,
+   * names and automations, and answers "No Response" until the entry is fixed.
+   */
+  private keepCachedVehicle(
+    raw: unknown,
+    index: number,
+    activeUuids: Set<string>,
+  ): void {
+    const vin = configuredVin(raw);
+    if (!vin) {
+      return;
+    }
+    const uuid = this.api.hap.uuid.generate(`${PLUGIN_NAME}:${vin}`);
+    const cached = this.cachedAccessories.get(uuid);
+    if (cached && !activeUuids.has(uuid)) {
+      activeUuids.add(uuid);
+      markUnavailable(this.api.hap, cached);
+      this.log.warn(
+        `Keeping vehicle ${maskVin(vin)} in HomeKit, but not updating it until vehicles[${index}] is fixed`,
+      );
+    }
+  }
+
+  /** A cached vehicle keeps its old name unless the new one from the config is applied. */
+  private rename(
+    accessory: PlatformAccessory,
+    name: string,
+    log: Logger,
+  ): void {
+    log.info(`Renamed from "${accessory.displayName}"`);
+    accessory.updateDisplayName(name);
+    accessory
+      .getService(this.api.hap.Service.AccessoryInformation)
+      ?.setCharacteristic(this.api.hap.Characteristic.Name, name);
+    this.api.updatePlatformAccessories([accessory]);
+  }
+
   private setUpVehicle(
     settings: VehicleSettings,
     uuid: string,
@@ -94,6 +141,9 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     const cached = this.cachedAccessories.get(uuid);
     const accessory =
       cached ?? new this.api.platformAccessory(settings.name, uuid);
+    if (cached && cached.displayName !== settings.name) {
+      this.rename(cached, settings.name, log);
+    }
 
     const client = new SkodaApiClient({
       token: settings.token,

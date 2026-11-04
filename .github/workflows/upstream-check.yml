@@ -1,7 +1,7 @@
 name: Upstream check
 
 # Monthly reminder to check the API changelog, skoda-public-api and the Home Assistant integration.
-# See MAINTAINING.md.
+# See dev/MAINTAINING.md.
 
 on:
   schedule:
@@ -9,12 +9,14 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   issues: write
 
 jobs:
   reminder:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
       - name: Open a reminder issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -26,20 +28,31 @@ jobs:
             exit 0
           fi
 
+          # The snapshot is written with `python3 -m json.tool --indent 2`, so the same formatting compares.
+          if spec=$(curl -fsS https://public.api.connect.skoda-auto.cz/v3/api-docs); then
+            if printf '%s' "$spec" | python3 -m json.tool --indent 2 | diff -q dev/api/openapi.json - >/dev/null; then
+              api_status="unchanged since the snapshot in dev/api/openapi.json"
+            else
+              api_status="**changed** since the snapshot in dev/api/openapi.json: compare, then update the snapshot"
+            fi
+          else
+            api_status="could not be downloaded"
+          fi
+
           library_release=$(gh release view -R mobility-lab-vsb/skoda-public-api --json tagName --jq .tagName || echo unknown)
           library_prs=$(gh pr list -R mobility-lab-vsb/skoda-public-api --state open --json number,title --jq '.[] | "  - #\(.number) \(.title)"' || true)
           ha_requirement=$(gh api 'repos/home-assistant/core/contents/homeassistant/components/skoda/manifest.json?ref=dev' --jq .content | base64 -d | jq -r '.requirements | join(", ")' || echo unknown)
           ha_commits=$(gh api 'repos/home-assistant/core/commits?path=homeassistant/components/skoda&sha=dev&per_page=5' --jq '.[] | "  - \(.commit.committer.date[0:10]) \(.commit.message | split("\n")[0])"' || true)
 
           body=$(cat <<EOF
-          Monthly upstream check, see [MAINTAINING.md](../blob/main/MAINTAINING.md).
+          Monthly upstream check, see [dev/MAINTAINING.md](../blob/main/dev/MAINTAINING.md).
 
-          - [ ] MyŠkoda Public API [changelog](https://public.api.connect.skoda-auto.cz/docs/changelog) and [OpenAPI document](https://public.api.connect.skoda-auto.cz/v3/api-docs)
+          - [ ] MyŠkoda Public API [changelog](https://public.api.connect.skoda-auto.cz/docs/changelog) and [OpenAPI document](https://public.api.connect.skoda-auto.cz/v3/api-docs): ${api_status}
           - [ ] skoda-public-api: latest release ${library_release}, open PRs:
           ${library_prs:-  - none}
           - [ ] Home Assistant \`skoda\` (dev) requires ${ha_requirement}, recent changes:
           ${ha_commits:-  - none}
-          - [ ] Update "Last check" in MAINTAINING.md
+          - [ ] Update "Last check" in dev/MAINTAINING.md
           EOF
           )
           gh issue create --title "$title" --body "$body"

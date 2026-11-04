@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_FEATURES,
   clampTemperature,
+  configuredVin,
   parseVehicleConfig,
 } from "../src/config.js";
 import { createVehicleLogger } from "../src/util/logger.js";
@@ -153,6 +154,16 @@ describe("parseVehicleConfig", () => {
       parse({ ...base, home: { lat: 1, lon: 2, radiusMeters: 1 } }).settings
         .home?.radiusMeters,
     ).toBe(10);
+  });
+});
+
+describe("configuredVin", () => {
+  it("returns the normalized VIN of an entry, also when other fields are invalid", () => {
+    expect(configuredVin({ vin: " tmbjb9ny5rf999999 ", token: "" })).toBe(
+      TEST_VIN,
+    );
+    expect(configuredVin({ vin: "TOO-SHORT" })).toBeUndefined();
+    expect(configuredVin("not an object")).toBeUndefined();
   });
 });
 

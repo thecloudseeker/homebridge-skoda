@@ -124,6 +124,115 @@ describe("SkodaPlatform", () => {
     shutdown();
   });
 
+  it("keeps a cached vehicle whose entry is invalid, without polling", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const { api, launch, shutdown } = fakeApi();
+    const log = fakeLog();
+    const platform = new SkodaPlatform(
+      log,
+      {
+        ...config,
+        vehicles: [{ name: "Octi", vin: TEST_VIN, token: "" }],
+      },
+      api,
+    );
+    const uuid = hap.uuid.generate(
+      `@thecloudseeker/homebridge-skoda:${TEST_VIN}`,
+    );
+    const cached = new hapNodejs.Accessory("Octi", uuid);
+    const outlet = cached.addService(
+      hapNodejs.Service.Outlet,
+      "Charging",
+      "charging",
+    );
+    const doors = cached.addService(
+      hapNodejs.Service.ContactSensor,
+      "Doors",
+      "doors",
+    );
+    platform.configureAccessory(cached as unknown as PlatformAccessory);
+    launch();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.unregisterPlatformAccessories).not.toHaveBeenCalled();
+    // The Home app shows the kept vehicle as unreachable instead of switches that do nothing.
+    const on = outlet.getCharacteristic(hapNodejs.Characteristic.On);
+    await expect(on.handleSetRequest(true)).rejects.toBe(-70402);
+    await expect(on.handleGetRequest()).rejects.toBe(-70402);
+    await expect(
+      doors
+        .getCharacteristic(hapNodejs.Characteristic.ContactSensorState)
+        .handleGetRequest(),
+    ).rejects.toBe(-70402);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(log.error).toHaveBeenCalledWith(
+      "Skipping vehicle: vehicles[0].token is missing",
+    );
+    expect(log.warn).toHaveBeenCalledWith(
+      "Keeping vehicle …9999 in HomeKit, but not updating it until vehicles[0] is fixed",
+    );
+    shutdown();
+  });
+
+  it("removes a cached vehicle that is no longer configured", () => {
+    const { api, launch, shutdown } = fakeApi();
+    const platform = new SkodaPlatform(
+      fakeLog(),
+      { ...config, vehicles: [] },
+      api,
+    );
+    const uuid = hap.uuid.generate(
+      `@thecloudseeker/homebridge-skoda:${TEST_VIN}`,
+    );
+    const cached = new hapNodejs.Accessory(
+      "Octi",
+      uuid,
+    ) as unknown as PlatformAccessory;
+    platform.configureAccessory(cached);
+    launch();
+    expect(api.unregisterPlatformAccessories).toHaveBeenCalledWith(
+      "@thecloudseeker/homebridge-skoda",
+      "Skoda",
+      [cached],
+    );
+    shutdown();
+  });
+
+  it("applies a new name from the config to a cached vehicle", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(mockResponse({ body: loadFixture("gasoline-live") })),
+      ),
+    );
+    const { api, update, launch, shutdown } = fakeApi();
+    const log = fakeLog();
+    const platform = new SkodaPlatform(log, config, api);
+    const uuid = hap.uuid.generate(
+      `@thecloudseeker/homebridge-skoda:${TEST_VIN}`,
+    );
+    const cached = new hapNodejs.Accessory("Old name", uuid);
+    // The HAP accessory stands in for Homebridge's PlatformAccessory, which adds this method.
+    const platformAccessory = Object.assign(cached, {
+      updateDisplayName(name: string) {
+        cached.displayName = name;
+      },
+    });
+    platform.configureAccessory(
+      platformAccessory as unknown as PlatformAccessory,
+    );
+    launch();
+    expect(cached.displayName).toBe("Octi");
+    expect(
+      cached
+        .getService(hapNodejs.Service.AccessoryInformation)
+        ?.getCharacteristic(hapNodejs.Characteristic.Name).value,
+    ).toBe("Octi");
+    expect(update).toHaveBeenCalledWith([platformAccessory]);
+    await vi.advanceTimersByTimeAsync(0);
+    shutdown();
+  });
+
   it("keeps a cached vehicle published from the start", async () => {
     vi.stubGlobal(
       "fetch",

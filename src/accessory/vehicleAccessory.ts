@@ -8,14 +8,25 @@ import {
   FuelLevelSensorBinding,
   StateOfChargeSensorBinding,
 } from "./services/battery.js";
-import { PresenceBinding, contactBindings } from "./services/body.js";
+import {
+  PluggedInBinding,
+  PresenceBinding,
+  contactBindings,
+  removeLegacyLockSensor,
+} from "./services/body.js";
 import { ChargingBinding, ChargingLimitBinding } from "./services/charging.js";
 import {
   ActiveVentilationBinding,
   AuxiliaryHeatingBinding,
   ClimateBinding,
 } from "./services/climate.js";
-import type { BindingContext, ServiceBinding } from "./services/common.js";
+import {
+  SERVICE_COMMUNICATION_FAILURE,
+  type BindingContext,
+  type HAP,
+  type ServiceBinding,
+} from "./services/common.js";
+import type { PlatformAccessory } from "homebridge";
 
 /** A service is removed only after this many updates report it unsupported, with none supported in between. */
 const REMOVE_AFTER_UNSUPPORTED_UPDATES = 2;
@@ -44,6 +55,7 @@ export class VehicleAccessory {
       new ClimateBinding(ctx),
       new AuxiliaryHeatingBinding(ctx),
       new ActiveVentilationBinding(ctx),
+      new PluggedInBinding(ctx),
       new PresenceBinding(ctx),
       ...contactBindings(ctx),
     ];
@@ -56,6 +68,9 @@ export class VehicleAccessory {
       .setCharacteristic(Characteristic.SerialNumber, maskVin(ctx.settings.vin))
       .setCharacteristic(Characteristic.FirmwareRevision, PLUGIN_VERSION);
 
+    if (removeLegacyLockSensor(ctx)) {
+      ctx.onServicesChanged?.();
+    }
     this.sync(ctx.controller.snapshot);
     ctx.controller.onUpdate((snapshot) => {
       this.sync(snapshot);
@@ -118,11 +133,41 @@ export class VehicleAccessory {
     const off = supported.filter((binding) => !features[binding.feature]);
     let summary = `Supported by the vehicle: ${shown.map((b) => b.name).join(", ") || "none"}`;
     if (off.length > 0) {
-      summary += `. Also supported, but turned off: ${off.map((b) => `${b.name} (features.${b.feature})`).join(", ")}`;
+      summary += `. Also supported, but turned off: ${off.map((b) => `${b.name} (${this.howToTurnOn(b.feature)})`).join(", ")}`;
     }
     if (summary !== this.lastSupportSummary) {
       this.lastSupportSummary = summary;
       this.ctx.log.info(summary);
+    }
+  }
+
+  /** Features that need more config are turned off automatically without it; name what is missing. */
+  private howToTurnOn(feature: keyof FeatureToggles): string {
+    const { settings } = this.ctx;
+    if (feature === "auxiliaryHeating" && !settings.spin) {
+      return "needs the S-PIN";
+    }
+    if (feature === "presence" && !settings.home) {
+      return "needs the home location";
+    }
+    return `features.${feature}`;
+  }
+}
+
+/**
+ * For a cached vehicle that is kept but not updated: every read and write answers "No Response",
+ * so the Home app shows the vehicle as unreachable instead of switches that seem to work.
+ */
+export function markUnavailable(hap: HAP, accessory: PlatformAccessory): void {
+  const fail = () => {
+    throw new hap.HapStatusError(SERVICE_COMMUNICATION_FAILURE);
+  };
+  for (const service of accessory.services) {
+    if (service.UUID === hap.Service.AccessoryInformation.UUID) {
+      continue;
+    }
+    for (const characteristic of service.characteristics) {
+      characteristic.onGet(fail).onSet(fail);
     }
   }
 }

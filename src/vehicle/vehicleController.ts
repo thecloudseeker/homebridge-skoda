@@ -6,6 +6,7 @@ import {
 } from "../api/errors.js";
 import type { OperationName, Vehicle } from "../api/types.js";
 import type { Logger } from "../util/logger.js";
+import { describeReport } from "./mapping.js";
 import { mergeSnapshot, type VehicleSnapshot } from "./snapshot.js";
 
 const MINUTE = 60_000;
@@ -187,6 +188,8 @@ export class VehicleController {
   private async fetch(): Promise<void> {
     try {
       const response = await this.options.client.getVehicle();
+      // Before merging, so the line shows what the vehicle reported, not the expected state.
+      const reported = describeReport(response.vehicle);
       this.current = this.applyLocalState(
         mergeSnapshot(this.current, response, Date.now()),
       );
@@ -198,6 +201,7 @@ export class VehicleController {
       this.options.log.debug(
         `Vehicle data updated (${response.errors?.length ?? 0} partial-data notice(s))`,
       );
+      this.options.log.debug(`Reported: ${reported}`);
       this.schedule(this.intervalMs);
     } catch (error) {
       this.handlePollError(error);
@@ -390,7 +394,7 @@ export function describeCommandError(error: unknown): string {
       case "operation-disabled":
         return "this function is currently disabled for the vehicle";
       case "vehicle-not-accepting-requests":
-        return "the vehicle declined the request, try again later";
+        return "the vehicle declined the request, e.g. because its 12 V battery is low; try again later";
       case "rate-limit-exceeded":
         return "rate limit exceeded";
       case "api-key-expired":

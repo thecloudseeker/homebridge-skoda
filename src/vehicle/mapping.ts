@@ -272,3 +272,53 @@ function lockState(vehicle: Vehicle): boolean | undefined {
 function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
+
+/**
+ * The raw values behind the charging and climate services, with the time the vehicle captured
+ * each part, for the debug log. They answer open questions only a real vehicle can: the plug
+ * lock state without a cable, and whether `carCapturedTimestamp` moves after a command. No VIN,
+ * no position.
+ */
+export function describeReport(vehicle: Vehicle): string {
+  const part = (
+    name: string,
+    values: Record<string, string | number | boolean | undefined>,
+  ) => {
+    const shown = Object.entries(values)
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}=${String(value)}`);
+    return shown.length > 0 ? `${name} ${shown.join(" ")}` : undefined;
+  };
+  const { charging, airConditioning, auxiliaryHeating, activeVentilation } =
+    vehicle;
+  return (
+    [
+      part("charging", {
+        state: charging?.status?.state,
+        cable: charging?.status?.plugConnectionState,
+        plugLock: charging?.status?.plugLockState,
+        limit: charging?.settings?.targetStateOfChargeInPercent,
+        autoUnlock: charging?.settings?.autoUnlockPlugWhenCharged,
+        captured: charging?.carCapturedTimestamp,
+      }),
+      part("airConditioning", {
+        state: airConditioning?.state,
+        captured: airConditioning?.carCapturedTimestamp,
+      }),
+      part("auxiliaryHeating", {
+        state: auxiliaryHeating?.state,
+        captured: auxiliaryHeating?.carCapturedTimestamp,
+      }),
+      part("activeVentilation", {
+        state: activeVentilation?.state,
+        captured: activeVentilation?.carCapturedTimestamp,
+      }),
+      part("status", {
+        locked: vehicle.status?.overall.locked,
+        captured: vehicle.status?.carCapturedTimestamp,
+      }),
+    ]
+      .filter((entry) => entry !== undefined)
+      .join("; ") || "nothing"
+  );
+}
