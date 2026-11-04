@@ -105,6 +105,7 @@ describe("parseVehicleConfig", () => {
         expected,
       );
       expect(warnings[0]).toContain("replaced by airConditioningOnBattery");
+      expect(warnings[0]).toContain(expected ? '"Allow"' : '"Do not allow"');
     }
     // The new option wins over the old one, without a warning about the leftover.
     const both = parse({

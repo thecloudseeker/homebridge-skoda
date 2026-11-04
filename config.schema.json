@@ -35,6 +35,25 @@
               "required": true,
               "description": "From the MyŠkoda app, Profile › Smart Home."
             },
+            "drive": {
+              "title": "Drive (optional)",
+              "type": "string",
+              "oneOf": [
+                {
+                  "title": "Electric",
+                  "enum": ["electric"]
+                },
+                {
+                  "title": "Plug-in hybrid",
+                  "enum": ["hybrid"]
+                },
+                {
+                  "title": "Combustion (petrol, diesel, CNG, LPG)",
+                  "enum": ["combustion"]
+                }
+              ],
+              "description": "Hides settings that don't apply. Empty shows all."
+            },
             "spin": {
               "title": "S-PIN (optional)",
               "type": "string",
@@ -109,8 +128,7 @@
                   "enum": ["deny"]
                 }
               ],
-              "placeholder": "vehicle",
-              "description": "Electric vehicles: run the air conditioning from the drive battery."
+              "description": "Electric vehicles only. Empty keeps the vehicle's setting."
             },
             "auxiliaryHeatingDurationMinutes": {
               "title": "Auxiliary heating run time (minutes, optional)",
@@ -266,6 +284,7 @@
               "key": "vehicles[].token",
               "type": "password"
             },
+            "vehicles[].drive",
             {
               "type": "help",
               "helpvalue": "<p>Only services your vehicle supports are created, so the defaults are fine. The log lists what your vehicle supports.</p>"
@@ -292,10 +311,30 @@
               "expandable": true,
               "expanded": false,
               "items": [
-                "vehicles[].features.battery",
-                "vehicles[].features.stateOfChargeSensor",
-                "vehicles[].features.fuelLevel",
-                "vehicles[].features.fuelLevelSensor",
+                {
+                  "key": "vehicles[].features.battery",
+                  "condition": {
+                    "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'combustion';"
+                  }
+                },
+                {
+                  "key": "vehicles[].features.stateOfChargeSensor",
+                  "condition": {
+                    "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'combustion';"
+                  }
+                },
+                {
+                  "key": "vehicles[].features.fuelLevel",
+                  "condition": {
+                    "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'electric';"
+                  }
+                },
+                {
+                  "key": "vehicles[].features.fuelLevelSensor",
+                  "condition": {
+                    "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'electric';"
+                  }
+                },
                 {
                   "key": "vehicles[].lowBatteryThreshold",
                   "type": "number"
@@ -314,7 +353,10 @@
                 "vehicles[].features.chargingLimit",
                 "vehicles[].features.pluggedIn",
                 "vehicles[].features.plugLock"
-              ]
+              ],
+              "condition": {
+                "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'combustion';"
+              }
             },
             {
               "type": "fieldset",
@@ -327,7 +369,12 @@
                   "key": "vehicles[].climateTemperature",
                   "type": "number"
                 },
-                "vehicles[].airConditioningOnBattery",
+                {
+                  "key": "vehicles[].airConditioningOnBattery",
+                  "condition": {
+                    "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'combustion';"
+                  }
+                },
                 "vehicles[].features.windowHeating",
                 "vehicles[].features.activeVentilation"
               ],
@@ -349,7 +396,10 @@
                   "key": "vehicles[].auxiliaryHeatingDurationMinutes",
                   "type": "number"
                 }
-              ]
+              ],
+              "condition": {
+                "functionBody": "const v = (model.vehicles || [])[arrayIndices] || {}; return v.drive !== 'electric';"
+              }
             },
             {
               "type": "fieldset",

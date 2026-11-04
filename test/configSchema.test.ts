@@ -204,3 +204,68 @@ describe("settings form texts", () => {
     expect(undescribed).toEqual([]);
   });
 });
+
+describe("drive selection", () => {
+  /** Layout entries with a condition, keyed by field key or fieldset title. */
+  const conditions = new Map<string, string>();
+  const collect = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(collect);
+    } else if (node && typeof node === "object") {
+      const item = node as {
+        key?: string;
+        title?: string;
+        items?: unknown;
+        condition?: { functionBody: string };
+      };
+      if (item.condition) {
+        conditions.set(
+          item.key ?? item.title ?? "?",
+          item.condition.functionBody,
+        );
+      }
+      collect(item.items);
+    }
+  };
+  collect(schema.layout);
+
+  /** Which conditional entries the form shows for the second vehicle with this drive. */
+  const shown = (drive: string | undefined) =>
+    [...conditions]
+      .filter(([, body]) => {
+        // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the schema's own condition like the settings form does
+        const run = new Function("model", "arrayIndices", body) as (
+          model: unknown,
+          arrayIndices: number[],
+        ) => boolean;
+        return run({ vehicles: [{ drive: "electric" }, { drive }] }, [1]);
+      })
+      .map(([key]) => key)
+      .sort();
+
+  it("hides only what does not apply to the drive, and shows everything without one", () => {
+    const all = [...conditions.keys()].sort();
+    expect(shown(undefined)).toEqual(all);
+    expect(shown("hybrid")).toEqual(all);
+    expect(shown("electric")).toEqual([
+      "Charging",
+      "vehicles[].airConditioningOnBattery",
+      "vehicles[].features.battery",
+      "vehicles[].features.stateOfChargeSensor",
+    ]);
+    expect(shown("combustion")).toEqual([
+      "Auxiliary heating",
+      "vehicles[].features.fuelLevel",
+      "vehicles[].features.fuelLevelSensor",
+    ]);
+  });
+
+  it("offers the drive values the conditions test for", () => {
+    const drive = vehicle.drive as { oneOf: { enum: string[] }[] };
+    expect(drive.oneOf.flatMap((option) => option.enum)).toEqual([
+      "electric",
+      "hybrid",
+      "combustion",
+    ]);
+  });
+});

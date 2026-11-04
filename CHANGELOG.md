@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0-beta.2
+
+- **Drive selection in the settings** (`drive`: electric, plug-in hybrid or combustion). It hides settings that do not apply, for example charging for a combustion vehicle or fuel level for an electric one. It only changes the settings form; the plugin still detects what the vehicle supports.
+- **Fixed:** with the option from before 0.3.1 still in the config, the settings showed "Keep the vehicle's setting" for "Air conditioning when not plugged in" while the old value applied, and the reminder in the log could not be cleared by choosing the option shown. The field is now empty until you choose, and the log names the value that applies.
+
 ## 0.4.0-beta.1
 
 - **Fixed:** a vehicle whose config entry became invalid, for example with an empty API key while the key was being replaced, was removed from HomeKit with its rooms, names and automations. If the entry still has a valid VIN, the vehicle now stays in HomeKit and shows "No Response" until the entry is fixed; the log says so.

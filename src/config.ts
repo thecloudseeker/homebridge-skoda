@@ -221,9 +221,16 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
     raw.airConditioningWithoutExternalPower !== undefined &&
     raw.airConditioningOnBattery === undefined
   ) {
+    const legacy = parseAllowance(raw.airConditioningWithoutExternalPower);
+    const applied =
+      legacy === undefined
+        ? "Keep the vehicle's setting"
+        : legacy
+          ? "Allow"
+          : "Do not allow";
     warnings.push(
       `${label}.airConditioningWithoutExternalPower is replaced by airConditioningOnBattery. ` +
-        'Its value is still used; choose "Air conditioning when not plugged in" again in the settings to update the config',
+        `Until you choose "Air conditioning when not plugged in" in the settings and save, "${applied}" applies`,
     );
   }
   for (const removed of REMOVED_OPTIONS) {
