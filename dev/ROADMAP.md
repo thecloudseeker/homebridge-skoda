@@ -17,9 +17,6 @@ Each release lists the questions that have to be answered before or during its w
 
 0.4.0 is in beta (see the [changelog](../CHANGELOG.md)). These questions are still open:
 
-- **Does the settings form look right in the real Homebridge UI?** Number fields instead of
-  sliders, the three-way choice for air conditioning when not plugged in, and the note at the top.
-  Answer: open the plugin settings in a Homebridge with the current release.
 - **Does the Home app really offer no automation trigger for _Outlet In Use_?** Answer: try to
   create the automation in the Home app. If it does offer one, the "Plugged In" sensor is optional.
 - **What does `plugLockState` report without a cable?** 0.4.0 assumes `UNLOCKED` and ignores the

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0-beta.3
+
+- **Fixed:** the log line listing what the vehicle supports could drop "Fuel" and add it back every few updates, because some responses leave out the notice that the vehicle has no charging. The line now keeps the last known answer. The service itself was never affected.
+- The debug log names the API's partial-data notices (for example `CHARGING_UNSUPPORTED`) instead of only counting them.
+
 ## 0.4.0-beta.2
 
 - **Drive selection in the settings** (`drive`: electric, plug-in hybrid or combustion). It hides settings that do not apply, for example charging for a combustion vehicle or fuel level for an electric one. It only changes the settings form; the plugin still detects what the vehicle supports.

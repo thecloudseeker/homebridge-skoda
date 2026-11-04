@@ -363,6 +363,35 @@ describe("VehicleAccessory", () => {
     controller.stop();
   });
 
+  it("keeps the support log steady when one response leaves support open", async () => {
+    const { accessory, controller, fetch, log } = setup([]);
+    const full = loadFixture("gasoline-live");
+    // Seen on a petrol car: some responses omit the CHARGING_UNSUPPORTED notice.
+    const withoutNotice = loadFixture("gasoline-live");
+    withoutNotice.errors = (withoutNotice.errors ?? []).filter(
+      (error) => error.type !== "CHARGING_UNSUPPORTED",
+    );
+    fetch
+      .mockImplementationOnce(() =>
+        Promise.resolve(mockResponse({ body: full })),
+      )
+      .mockImplementation(() =>
+        Promise.resolve(mockResponse({ body: withoutNotice })),
+      );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(log.info).toHaveBeenCalledWith(
+      expect.stringContaining("Supported by the vehicle: Fuel,"),
+    );
+    log.info.mockClear();
+    await vi.advanceTimersByTimeAsync(2 * 5 * 60_000);
+    expect(log.info).not.toHaveBeenCalledWith(
+      expect.stringContaining("Supported by the vehicle"),
+    );
+    expect(accessory.getServiceById(Service.Battery, "fuel")).toBeDefined();
+    controller.stop();
+  });
+
   it("honours feature toggles", async () => {
     const { accessory, controller } = setup(
       [],

@@ -198,8 +198,9 @@ export class VehicleController {
       }
       this.failures = 0;
       this.lastErrorKey = undefined;
+      const notices = (response.errors ?? []).map((error) => error.type);
       this.options.log.debug(
-        `Vehicle data updated (${response.errors?.length ?? 0} partial-data notice(s))`,
+        `Vehicle data updated (notices: ${notices.join(", ") || "none"})`,
       );
       this.options.log.debug(`Reported: ${reported}`);
       this.schedule(this.intervalMs);

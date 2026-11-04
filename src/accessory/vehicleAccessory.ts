@@ -43,6 +43,12 @@ export class VehicleAccessory {
   /** `fetchedAt` of the last snapshot, so optimistic updates and stale notices are not counted. */
   private lastFetchedAt: number | undefined;
   private lastSupportSummary: string | undefined;
+  /**
+   * The last definite answer per feature. An update that leaves support open (for example when a
+   * notice such as `CHARGING_UNSUPPORTED` is missing from one response) keeps the previous answer
+   * in the support log instead of dropping the feature from it.
+   */
+  private readonly knownSupport = new Map<keyof FeatureToggles, boolean>();
 
   constructor(private readonly ctx: BindingContext) {
     this.bindings = [
@@ -88,6 +94,9 @@ export class VehicleAccessory {
       const supported = snapshot
         ? featureSupport(snapshot, binding.feature)
         : undefined;
+      if (supported !== undefined && newUpdate) {
+        this.knownSupport.set(binding.feature, supported);
+      }
       if (enabled && supported === false && binding.exists()) {
         const count =
           (this.unsupportedUpdates.get(binding.feature) ?? 0) +
@@ -116,7 +125,7 @@ export class VehicleAccessory {
       this.ctx.onServicesChanged?.();
     }
     if (snapshot && newUpdate) {
-      this.logSupport(snapshot);
+      this.logSupport();
     }
   }
 
@@ -124,9 +133,9 @@ export class VehicleAccessory {
    * Logs what the vehicle supports whenever that changes, so users can see which features exist
    * for their vehicle without trying each one, and which of them are turned off in the config.
    */
-  private logSupport(snapshot: VehicleSnapshot): void {
+  private logSupport(): void {
     const supported = this.bindings.filter(
-      (binding) => featureSupport(snapshot, binding.feature) === true,
+      (binding) => this.knownSupport.get(binding.feature) === true,
     );
     const { features } = this.ctx.settings;
     const shown = supported.filter((binding) => features[binding.feature]);
