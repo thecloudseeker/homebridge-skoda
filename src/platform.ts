@@ -126,7 +126,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
     log: Logger,
   ): void {
     log.info(`Renamed from "${accessory.displayName}"`);
-    accessory.updateDisplayName(name);
+    setDisplayName(accessory, name);
     accessory
       .getService(this.api.hap.Service.AccessoryInformation)
       ?.setCharacteristic(this.api.hap.Characteristic.Name, name);
@@ -199,5 +199,30 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
         `${Math.max(0, DEFAULT_RATE_LIMIT - pollsPerHour)} left for commands)`,
     );
     controller.start();
+  }
+}
+
+/**
+ * `PlatformAccessory.updateDisplayName()` exists since Homebridge 2. On 1.8 the same two fields are
+ * set directly: the platform accessory's name and that of the HAP accessory it wraps, which is the
+ * one saved in the accessory cache.
+ */
+export function setDisplayName(
+  accessory: PlatformAccessory,
+  name: string,
+): void {
+  // Typed by hand: the Homebridge 2 types declare updateDisplayName, but 1.8 does not have it.
+  const compatible = accessory as unknown as {
+    displayName: string;
+    updateDisplayName?: (name: string) => void;
+    _associatedHAPAccessory?: { displayName: string };
+  };
+  if (typeof compatible.updateDisplayName === "function") {
+    compatible.updateDisplayName(name);
+    return;
+  }
+  compatible.displayName = name;
+  if (compatible._associatedHAPAccessory) {
+    compatible._associatedHAPAccessory.displayName = name;
   }
 }

@@ -6,7 +6,7 @@ import type {
   PlatformConfig,
 } from "homebridge";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SkodaPlatform } from "../src/platform.js";
+import { SkodaPlatform, setDisplayName } from "../src/platform.js";
 import {
   TEST_TOKEN,
   TEST_VIN,
@@ -255,5 +255,26 @@ describe("SkodaPlatform", () => {
     // The services added to the cached vehicle are saved to the accessory cache.
     expect(update).toHaveBeenCalledOnce();
     shutdown();
+  });
+});
+
+describe("setDisplayName", () => {
+  it("uses updateDisplayName on Homebridge 2", () => {
+    const updateDisplayName = vi.fn();
+    const accessory = { displayName: "Old", updateDisplayName };
+    setDisplayName(accessory as unknown as PlatformAccessory, "Octi");
+    expect(updateDisplayName).toHaveBeenCalledWith("Octi");
+  });
+
+  it("sets both names directly on Homebridge 1.8, where the method is missing", () => {
+    const hapAccessory = new hapNodejs.Accessory("Old", hap.uuid.generate("x"));
+    const accessory = {
+      displayName: "Old",
+      _associatedHAPAccessory: hapAccessory,
+    };
+    setDisplayName(accessory as unknown as PlatformAccessory, "Octi");
+    expect(accessory.displayName).toBe("Octi");
+    // The HAP accessory's name is the one saved in the accessory cache.
+    expect(hapAccessory.displayName).toBe("Octi");
   });
 });

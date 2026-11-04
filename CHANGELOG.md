@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0-beta.4
+
+- **Fixed:** on Homebridge 1.8, renaming a vehicle in the config would fail, because the method used for it only exists in Homebridge 2 (since 0.4.0-beta.1). The name is now set in a way both versions support.
+
 ## 0.4.0-beta.3
 
 - **Fixed:** the log line listing what the vehicle supports could drop "Fuel" and add it back every few updates, because some responses leave out the notice that the vehicle has no charging. The line now keeps the last known answer. The service itself was never affected.
