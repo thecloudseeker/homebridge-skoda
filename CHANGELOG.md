@@ -1,30 +1,19 @@
 # Changelog
 
-## 0.4.0-beta.4
+## 0.4.0
 
-- **Fixed:** on Homebridge 1.8, renaming a vehicle in the config would fail, because the method used for it only exists in Homebridge 2 (since 0.4.0-beta.1). The name is now set in a way both versions support.
-
-## 0.4.0-beta.3
-
-- **Fixed:** the log line listing what the vehicle supports could drop "Fuel" and add it back every few updates, because some responses leave out the notice that the vehicle has no charging. The line now keeps the last known answer. The service itself was never affected.
-- The debug log names the API's partial-data notices (for example `CHARGING_UNSUPPORTED`) instead of only counting them.
-
-## 0.4.0-beta.2
-
-- **Drive selection in the settings** (`drive`: electric, plug-in hybrid or combustion). It hides settings that do not apply, for example charging for a combustion vehicle or fuel level for an electric one. It only changes the settings form; the plugin still detects what the vehicle supports.
-- **Fixed:** with the option from before 0.3.1 still in the config, the settings showed "Keep the vehicle's setting" for "Air conditioning when not plugged in" while the old value applied, and the reminder in the log could not be cleared by choosing the option shown. The field is now empty until you choose, and the log names the value that applies.
-
-## 0.4.0-beta.1
-
-- **Fixed:** a vehicle whose config entry became invalid, for example with an empty API key while the key was being replaced, was removed from HomeKit with its rooms, names and automations. If the entry still has a valid VIN, the vehicle now stays in HomeKit and shows "No Response" until the entry is fixed; the log says so.
-- **"Plugged In" sensor** for automations: an optional occupancy sensor that detects a plugged-in charging cable (`features.pluggedIn`). The cable state on the charging outlet (_Outlet In Use_) cannot trigger automations in the Home app.
 - **"Locked" is now a lock**, so the Home app says _locked_ or _unlocked_ instead of _closed_ or _open_. It is read-only: changing it in the Home app fails right away. The contact sensor of 0.3.x is replaced, so automations that used it need to be set up again.
-- The README explains the room summary and _Show as Separate Tiles_ in the Home app.
-- **Renaming a vehicle** in the config now renames it in Homebridge and HomeKit. Before, a vehicle kept the name it had when it was first added. The Home app may keep a name you set there yourself.
-- **Plug Locked** no longer shows _open_ while no cable is plugged in. Without a cable the vehicle reports the plug as unlocked, which would trigger an alert after every unplug.
+- **"Plugged In" sensor** for automations: an optional occupancy sensor that detects a plugged-in charging cable (`features.pluggedIn`). The cable state on the charging outlet (_Outlet In Use_) cannot trigger automations in the Home app.
+- **Drive selection in the settings** (`drive`: electric, plug-in hybrid or combustion). It hides settings that do not apply, for example charging for a combustion vehicle or fuel level for an electric one. It only changes the settings form; the plugin still detects what the vehicle supports.
+- **Renaming a vehicle** in the config now renames it in Homebridge and HomeKit, on Homebridge 1.8 and 2. Before, a vehicle kept the name it had when it was first added. The Home app may keep a name you set there yourself.
+- **Fixed:** a vehicle whose config entry became invalid, for example with an empty API key while the key was being replaced, was removed from HomeKit with its rooms, names and automations. If the entry still has a valid VIN, the vehicle now stays in HomeKit and shows "No Response" until the entry is fixed; the log says so.
+- **Fixed:** with the option from before 0.3.1 still in the config, the settings showed "Keep the vehicle's setting" for "Air conditioning when not plugged in" while the old value applied, and the reminder in the log could not be cleared by choosing the option shown. The field is now empty until you choose, and the log names the value that applies.
+- **Fixed:** "Plug Locked" no longer shows _open_ while no cable is plugged in. Without a cable the vehicle reports the plug as unlocked, which would trigger an alert after every unplug.
+- **Fixed:** the log line listing what the vehicle supports could drop "Fuel" and add it back every few updates, because some responses leave out the notice that the vehicle has no charging. The line now keeps the last known answer. The service itself was never affected.
 - The log line listing what the vehicle supports names a missing S-PIN or home location, instead of the feature switch, for auxiliary heating and the "Home" sensor.
-- **Debug log:** each update logs what the vehicle reported for charging (state, cable, plug lock, limit, automatic unlock), air conditioning, auxiliary heating, ventilation and the lock, each with the time the vehicle captured it. No VIN, no position. This helps answer open questions with electric vehicles.
 - When the vehicle declines a command, the log mentions a low 12 V battery as a possible cause, as the API documentation does.
+- **Debug log:** each update logs the API's partial-data notices (for example `CHARGING_UNSUPPORTED`) and what the vehicle reported for charging (state, cable, plug lock, limit, automatic unlock), air conditioning, auxiliary heating, ventilation and the lock, each with the time the vehicle captured it. No VIN, no position. This helps answer open questions with electric vehicles.
+- The README explains the room summary and _Show as Separate Tiles_ in the Home app.
 
 ## 0.3.1
 

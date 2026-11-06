@@ -15,7 +15,7 @@ Each release lists the questions that have to be answered before or during its w
 
 ## Open questions from 0.4.0
 
-0.4.0 is in beta (see the [changelog](../CHANGELOG.md)). These questions are still open:
+0.4.0 is released (see the [changelog](../CHANGELOG.md)). These questions are still open:
 
 - **Does the Home app really offer no automation trigger for _Outlet In Use_?** Answer: try to
   create the automation in the Home app. If it does offer one, the "Plugged In" sensor is optional.
