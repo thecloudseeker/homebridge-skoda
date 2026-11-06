@@ -118,7 +118,9 @@ describe("VehicleAccessory", () => {
     expect(subtypes).toEqual([
       "battery",
       "charging",
-      "charging-limit",
+      "charging-limit-80",
+      "charging-limit-90",
+      "charging-limit-100",
       "climate",
       "home",
       "doors",
@@ -146,13 +148,15 @@ describe("VehicleAccessory", () => {
       value(accessory, Service.Outlet, "charging", Characteristic.OutletInUse),
     ).toBe(true);
     expect(
-      value(
-        accessory,
-        Service.Lightbulb,
-        "charging-limit",
-        Characteristic.Brightness,
+      [80, 90, 100].map((percent) =>
+        value(
+          accessory,
+          Service.Switch,
+          `charging-limit-${percent}`,
+          Characteristic.On,
+        ),
       ),
-    ).toBe(80);
+    ).toEqual([true, false, false]);
     expect(
       value(accessory, Service.HeaterCooler, "climate", Characteristic.Active),
     ).toBe(Characteristic.Active.INACTIVE);
@@ -483,6 +487,64 @@ describe("VehicleAccessory", () => {
     controller.stop();
   });
 
+  it("answers the controls with no response while the data is stale", async () => {
+    const { accessory, controller, fetch } = setup([
+      mockResponse({ body: loadFixture("enyaq") }),
+      ...Array.from({ length: 5 }, () =>
+        mockResponse({ status: 503, body: problem(503) }),
+      ),
+    ]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const charging = accessory
+      .getServiceById(Service.Outlet, "charging")!
+      .getCharacteristic(Characteristic.On);
+    const preset = accessory
+      .getServiceById(Service.Switch, "charging-limit-90")!
+      .getCharacteristic(Characteristic.On);
+    const temperature = accessory
+      .getServiceById(Service.HeaterCooler, "climate")!
+      .getCharacteristic(Characteristic.HeatingThresholdTemperature);
+    const battery = accessory
+      .getServiceById(Service.Battery, "battery")!
+      .getCharacteristic(Characteristic.BatteryLevel);
+    const doors = accessory
+      .getServiceById(Service.ContactSensor, "doors")!
+      .getCharacteristic(Characteristic.ContactSensorState);
+    expect(await charging.handleGetRequest()).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    const sent = fetch.mock.calls.length;
+    await expect(charging.handleGetRequest()).rejects.toBe(-70402);
+    await expect(battery.handleGetRequest()).rejects.toBe(-70402);
+    await expect(charging.handleSetRequest(false)).rejects.toBe(-70402);
+    await expect(preset.handleSetRequest(true)).rejects.toBe(-70402);
+    await expect(temperature.handleSetRequest(25)).rejects.toBe(-70402);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(
+      fetch.mock.calls.slice(sent).filter(([, init]) => init?.method !== "GET"),
+    ).toEqual([]);
+    // Names stay readable, so the Home app keeps them.
+    expect(
+      await accessory
+        .getServiceById(Service.Outlet, "charging")!
+        .getCharacteristic(Characteristic.ConfiguredName)
+        .handleGetRequest(),
+    ).toBe("Charging");
+    // Sensors stay readable and show the fault instead.
+    expect(await doors.handleGetRequest()).toBe(
+      Characteristic.ContactSensorState.CONTACT_DETECTED,
+    );
+
+    // The next successful update makes the controls usable again. After five failures the backoff
+    // has grown to 30 minutes, so it comes about 100 minutes after the start.
+    await vi.advanceTimersByTimeAsync(45 * 60_000);
+    expect(await charging.handleGetRequest()).toBe(true);
+    await charging.handleSetRequest(false);
+    expect(charging.value).toBe(false);
+    controller.stop();
+  });
+
   it("removes a control only after two updates without its operations", async () => {
     const withoutCharging = () => {
       const body = loadFixture("enyaq");
@@ -586,26 +648,221 @@ describe("VehicleAccessory", () => {
     controller.stop();
   });
 
-  it("debounces and normalizes the charging limit", async () => {
+  it("sets the limit of a charge limit switch and turns the others off", async () => {
     const { accessory, controller, fetch } = setup([]);
     controller.start();
     await vi.advanceTimersByTimeAsync(0);
 
-    const brightness = accessory
-      .getServiceById(Service.Lightbulb, "charging-limit")!
-      .getCharacteristic(Characteristic.Brightness);
-    await brightness.handleSetRequest(60);
-    await brightness.handleSetRequest(73);
-    await vi.advanceTimersByTimeAsync(3000);
+    const on = (percent: number) =>
+      accessory
+        .getServiceById(Service.Switch, `charging-limit-${percent}`)!
+        .getCharacteristic(Characteristic.On);
+    await on(100).handleSetRequest(true);
 
     const commands = fetch.mock.calls.filter(
       ([, init]) => init?.method === "PUT",
     );
     expect(commands).toHaveLength(1);
     expect(JSON.parse(commands[0]![1]!.body as string)).toEqual({
-      targetStateOfChargeInPercent: 70,
+      targetStateOfChargeInPercent: 100,
     });
-    expect(brightness.value).toBe(70);
+    expect([on(80).value, on(90).value, on(100).value]).toEqual([
+      false,
+      false,
+      true,
+    ]);
+    controller.stop();
+  });
+
+  it("lists the charge limit switches once in the support log", async () => {
+    const { controller, log } = setup([]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const summary = log.info.mock.calls
+      .map(([message]) => String(message))
+      .find((message) => message.startsWith("Supported by the vehicle"));
+    expect(summary?.match(/Charge Limit Switches/g)).toHaveLength(1);
+    controller.stop();
+  });
+
+  it("sends nothing for the active switch and turns it back on when switched off", async () => {
+    const { accessory, controller, fetch } = setup([]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    const on = accessory
+      .getServiceById(Service.Switch, "charging-limit-80")!
+      .getCharacteristic(Characteristic.On);
+    await on.handleSetRequest(true);
+    await on.handleSetRequest(false);
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(on.value).toBe(true);
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "PUT"),
+    ).toHaveLength(0);
+    controller.stop();
+  });
+
+  it("shows all switches off for a limit without a switch", async () => {
+    const { accessory, controller } = setup(
+      [],
+      settingsFor({ chargingLimits: [90, 100] }),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(
+      [90, 100].map((percent) =>
+        value(
+          accessory,
+          Service.Switch,
+          `charging-limit-${percent}`,
+          Characteristic.On,
+        ),
+      ),
+    ).toEqual([false, false]);
+    controller.stop();
+  });
+
+  it("removes switches for limits that are no longer configured", () => {
+    const { accessory, onServicesChanged } = setup(
+      [],
+      settingsFor({ chargingLimits: [80, 100] }),
+      (cached) => {
+        cached.addService(
+          Service.Switch,
+          "Charge Limit 70 %",
+          "charging-limit-70",
+        );
+        cached.addService(
+          Service.Switch,
+          "Charge Limit 80 %",
+          "charging-limit-80",
+        );
+      },
+    );
+    expect(
+      accessory.getServiceById(Service.Switch, "charging-limit-70"),
+    ).toBeUndefined();
+    expect(
+      accessory.getServiceById(Service.Switch, "charging-limit-80"),
+    ).toBeDefined();
+    expect(onServicesChanged).toHaveBeenCalled();
+  });
+
+  it("replaces the charge limit lightbulb of earlier versions", () => {
+    const { accessory, log, onServicesChanged } = setup(
+      [],
+      settingsFor(),
+      (cached) => {
+        cached.addService(Service.Lightbulb, "Charge Limit", "charging-limit");
+      },
+    );
+    expect(
+      accessory.getServiceById(Service.Lightbulb, "charging-limit"),
+    ).toBeUndefined();
+    expect(log.info).toHaveBeenCalledWith(
+      "Replaced the Charge Limit lightbulb with charge limit switches",
+    );
+    expect(onServicesChanged).toHaveBeenCalled();
+  });
+
+  /** Serves the Enyaq fixture with the air conditioning running, and 202 for commands. */
+  function runningClimate() {
+    const running = loadFixture("enyaq");
+    running.vehicle.airConditioning!.state = "HEATING";
+    const ctx = setup([]);
+    ctx.fetch.mockImplementation((_url, init) =>
+      Promise.resolve(
+        init?.method === "GET"
+          ? mockResponse({ body: running })
+          : mockResponse({ status: 202 }),
+      ),
+    );
+    const commands = () =>
+      ctx.fetch.mock.calls
+        .filter(([, init]) => init?.method === "POST")
+        .map(([url, init]) => ({
+          path: (url as string).replace(/^.*\/air-conditioning/, ""),
+          body: init?.body ? (JSON.parse(init.body as string) as object) : {},
+        }));
+    return { ...ctx, commands };
+  }
+
+  it("restarts a running air conditioning with a new temperature", async () => {
+    const { accessory, controller, commands } = runningClimate();
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const threshold = accessory
+      .getServiceById(Service.HeaterCooler, "climate")!
+      .getCharacteristic(Characteristic.HeatingThresholdTemperature);
+
+    await threshold.handleSetRequest(22);
+    await threshold.handleSetRequest(23);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(commands().map((command) => command.path)).toEqual(["/stop"]);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(commands()).toEqual([
+      { path: "/stop", body: {} },
+      {
+        path: "/start",
+        body: expect.objectContaining({
+          targetTemperature: { value: 23, unit: "CELSIUS" },
+        }) as object,
+      },
+    ]);
+    controller.stop();
+  });
+
+  it("drops a waiting temperature change when Homebridge shuts down", async () => {
+    const { accessory, controller, commands } = runningClimate();
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const threshold = accessory
+      .getServiceById(Service.HeaterCooler, "climate")!
+      .getCharacteristic(Characteristic.HeatingThresholdTemperature);
+
+    await threshold.handleSetRequest(23);
+    controller.stop();
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(commands()).toEqual([]);
+  });
+
+  it("does not restart the air conditioning after a shutdown during the pause", async () => {
+    const { accessory, controller, commands, log } = runningClimate();
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const threshold = accessory
+      .getServiceById(Service.HeaterCooler, "climate")!
+      .getCharacteristic(Characteristic.HeatingThresholdTemperature);
+
+    await threshold.handleSetRequest(23);
+    await vi.advanceTimersByTimeAsync(3000);
+    controller.stop();
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(commands().map((command) => command.path)).toEqual(["/stop"]);
+    expect(log.info).toHaveBeenCalledWith(
+      "Homebridge is shutting down; the air conditioning was not restarted",
+    );
+  });
+
+  it("shows the expected state for at most 15 minutes if the vehicle never reports back", async () => {
+    // The fixture keeps reporting "charging" with the same timestamp, as if the stop never arrived.
+    const { accessory, controller } = setup([]);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const on = accessory
+      .getServiceById(Service.Outlet, "charging")!
+      .getCharacteristic(Characteristic.On);
+
+    await on.handleSetRequest(false);
+    expect(on.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(on.value).toBe(false);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(on.value).toBe(true);
     controller.stop();
   });
 

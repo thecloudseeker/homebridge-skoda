@@ -1,7 +1,6 @@
 # Roadmap
 
-Planned releases, based on an audit of 0.3.0 against the planned feature set. Each item is meant
-to fit into one pull request. Order within a release is the suggested order of work.
+Planned releases
 
 Upstream changes (API, skoda-public-api, Home Assistant) are tracked separately in
 [MAINTAINING.md](MAINTAINING.md) and may reorder this list. One question is tracked there rather
@@ -13,70 +12,21 @@ than in a release:
 
 Each release lists the questions that have to be answered before or during its work.
 
-## Open questions from 0.4.0
+## 0.5.0: Charge limit presets, tests and verification
 
-0.4.0 is released (see the [changelog](../CHANGELOG.md)). These questions are still open:
+In progress (see the [changelog](../CHANGELOG.md)): one switch per configured limit replaces the
+lightbulb, which is removed. It also takes everything from the former 0.6.0 that needs no vehicle:
+stale data on the controls, the split of `VehicleController`, a test with a real saved config,
+the missing tests and the clean-ups. What needs a vehicle is in
+[Needs a charging vehicle](#needs-a-charging-vehicle).
+
+Open question that needs no vehicle:
 
 - **Does the Home app really offer no automation trigger for _Outlet In Use_?** Answer: try to
-  create the automation in the Home app. If it does offer one, the "Plugged In" sensor is optional.
-- **What does `plugLockState` report without a cable?** 0.4.0 assumes `UNLOCKED` and ignores the
-  lock state while unplugged. Answer: debug log from a vehicle that charges.
-- **How often is a plugged-in cable unlocked while not charging?** With automatic unlocking after
-  charging, "Plug Locked" could be open most of the time. Answer: the same debug log.
+  create the automation with any outlet in the Home app. If it does offer one, the "Plugged In"
+  sensor is optional.
 
-## 0.5.0: Charge limit presets
-
-- **Replace the charge limit lightbulb.** As a lightbulb, the charge limit reacts to scenes and
-  "all lights" commands: setting room lights to 30 % sends a real charge limit change (rounded to
-  50 %), and "turn off the lights" seems to work but is reverted after half a second. In Matter it
-  would be a dimmable light in the same groups.
-  - Offer mutually exclusive preset switches, for example 80, 90 and 100 %, configurable within
-    50–100 % in steps of 10. Switching one on sends the limit and turns the others off.
-  - Switches cannot be turned off directly; turning the active one off is reverted.
-  - The presets show the reported limit; a limit set in the MyŠkoda app that matches no preset
-    shows all presets off.
-  - Keep the lightbulb behind a setting for one release, then remove it.
-
-## 0.6.0: Tests and verification
-
-- **Close test gaps:**
-  - the air conditioning restart when the temperature changes while running (stop, 10 s pause,
-    start, two requests)
-  - turning the charge limit off (until 0.5.0 removes it)
-  - the 15-minute limit of the expected state, seen from the accessory
-  - add a coverage report to CI
-  - configs as earlier versions really saved them, taken from users' config.json files, instead of
-    hand-written examples in the schema test
-- **Verify the expected state after commands.** The plugin keeps the expected state until the
-  vehicle's `carCapturedTimestamp` for that part moves past the time of the command, for at most
-  15 minutes. The API documents the timestamp, but it is not confirmed with a real electric
-  vehicle that it moves after a command.
-  - Since 0.4.0 each update logs the captured times at debug level ("Reported: …"), next to the
-    info line of each accepted command. Collect these logs from users with electric vehicles.
-  - Tune the 15 minutes. Today a command the vehicle accepts but does not carry out, for example
-    starting to charge without a cable, shows the wrong state for up to 15 minutes.
-
-- **Show stale data on the controls too.** Only the sensors show a fault when the data is older
-  than three polling intervals. The charging outlet, the switches, the heater cooler and the battery
-  keep their last state without any hint. Answer reads and writes with "No Response" while the
-  data is stale, as for a vehicle whose config entry is invalid.
-- **Measure the timings** that are estimates today: the 15 minutes above, the two updates before a
-  service is removed, the 10 s pause when the air conditioning restarts, and the 3 s slider delay.
-- **Clean-ups:**
-  - Split `VehicleController`: polling and backoff on one side, commands and the expected state on
-    the other. It has grown to about 400 lines.
-  - Cancel waiting commands (debounced charge limit, air conditioning restart) when Homebridge shuts
-    down; `stop()` only clears the poll timers.
-  - Give back the slot of the refunded request in `RateBudget.refund()`, not the newest one. With
-    a poll and a command at the same time the window is off by a few seconds.
-  - Drop the key label of `noteKeyExpiry()`; there is only one API key since 0.3.0.
-
-Open questions:
-
-- **Does `carCapturedTimestamp` move after a command, and how quickly?** Answer: the debug log
-  above, from users with electric vehicles.
-
-## 0.7.0: Matter
+## 0.6.0: Matter
 
 Homebridge 2 registers Matter accessories through a separate API (`api.matter`) with explicit
 device types; HomeKit services are not converted automatically. Register Matter accessories only
@@ -103,7 +53,7 @@ Open questions:
 - **Which Matter device type fits a function you can switch, like ventilation or a charge limit
   preset?** Answer: Homebridge's Matter documentation and a test with the Home app.
 
-## 0.8.0: Command queue
+## 0.7.0: Command queue
 
 Today a command that does not fit into the request budget is rejected right away ("No Response"
 in the Home app), so it never runs unexpectedly later. A queue would send it as soon as a request
@@ -123,6 +73,32 @@ Open questions:
   quota is already used up?** After a restart the request budget starts empty; if the quota is
   used up, that request gets a `429`, and the server's rate limit headers correct the budget right
   after. Answer: decide whether the budget should be saved across restarts.
+
+## Needs a charging vehicle
+
+These questions can only be answered with an electric or plug-in hybrid vehicle that charges. No
+such vehicle is available for testing at the moment, so they are not tied to a release. Answer
+them from the debug log ("Vehicle data updated (notices: …)" and "Reported: …") and adjust the
+code in the next release after.
+
+- **What does `plugLockState` report without a cable?** 0.4.0 assumes `UNLOCKED` and ignores the
+  lock state while unplugged.
+- **How often is a plugged-in cable unlocked while not charging?** With automatic unlocking after
+  charging, "Plug Locked" could be open most of the time.
+- **Do the charge limit switches work with a real vehicle?** Turn one on and check that the
+  vehicle reports the new limit, that the other switches turn off, and that a limit set in the
+  MyŠkoda app shows up.
+- **Does `carCapturedTimestamp` move after a command, and how quickly?** The plugin keeps the
+  expected state until the vehicle's `carCapturedTimestamp` for that part moves past the time of
+  the command, for at most 15 minutes. The API documents the timestamp, but it is not confirmed
+  with a real electric vehicle that it moves after a command. Compare the "Reported: …" debug
+  lines with the info line of each accepted command.
+- **Is 15 minutes the right time for the expected state?** Today a command the vehicle accepts but
+  does not carry out, for example starting to charge without a cable, shows the wrong state for up
+  to 15 minutes. Tune it with the answer above.
+- **Measure the other estimated timings:** the two updates before a service is removed, the 10 s
+  pause when the air conditioning restarts, and the 3 s delay of the temperature slider. They need
+  a vehicle with remote air conditioning and services that come and go.
 
 ## Not planned
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0-beta.1
+
+- **Charge limit switches** replace the charge limit lightbulb: one switch per limit, by default 80, 90 and 100 % (`chargingLimits`, 50–100 in steps of 10). Turning one on sets that limit and turns the others off. As a lightbulb, the limit was changed by scenes and "all lights" commands, for example to 50 % when the room lights were dimmed.
+- **The lightbulb is removed** on update, and `features.chargingLimit` is no longer used. Automations that used it need to be set up again with the switches.
+- **Stale data on the controls:** if the last successful update is older than three polling intervals, the battery, the outlet, the switches and the heater cooler show "No Response" and send no commands, until the next update succeeds. Before, they kept their last state without any hint; only the sensors showed a fault.
+- When Homebridge shuts down, a temperature change that is still waiting is dropped, and a running air conditioning is not restarted halfway.
+- The request budget gives back the right slot when a response does not count (401, 403, 429). Before, it gave back the newest one, which could shift the request count by a few seconds.
+- Tests for the air conditioning restart, for the expected state that is kept at most 15 minutes, and with a config as the settings form really saved it. CI reports the test coverage.
+- Internal: the expected state after commands and the log texts for errors moved out of the vehicle controller into their own modules. 
+
 ## 0.4.0
 
 - **"Locked" is now a lock**, so the Home app says _locked_ or _unlocked_ instead of _closed_ or _open_. It is read-only: changing it in the Home app fails right away. The contact sensor of 0.3.x is replaced, so automations that used it need to be set up again.

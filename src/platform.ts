@@ -151,7 +151,7 @@ export class SkodaPlatform implements DynamicPlatformPlugin {
       budget: new RateBudget(),
       userAgent: `homebridge-skoda/${PLUGIN_VERSION}`,
       onKeyExpiry: (expiresAt) => {
-        controller.noteKeyExpiry("API key", expiresAt);
+        controller.noteKeyExpiry(expiresAt);
       },
     });
     const controller = new VehicleController({

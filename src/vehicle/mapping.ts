@@ -108,11 +108,6 @@ export function chargingLimit(vehicle: Vehicle): number | undefined {
   return vehicle.charging?.settings?.targetStateOfChargeInPercent;
 }
 
-/** Vehicles accept 50–100 % in steps of 10 according to the API reference. */
-export function normalizeChargingLimit(percent: number): number {
-  return Math.min(100, Math.max(50, Math.round(percent / 10) * 10));
-}
-
 export function toCelsius(
   temperature: TargetTemperature | undefined,
 ): number | undefined {

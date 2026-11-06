@@ -4,16 +4,14 @@ import {
   chargingLimit,
   isCharging,
   isPlugConnected,
-  normalizeChargingLimit,
 } from "../../vehicle/mapping.js";
+import type { CommandOptions } from "../../vehicle/vehicleController.js";
 import {
   ServiceBinding,
-  debounce,
   patchChargingStatus,
+  type BindingContext,
   type ServiceType,
 } from "./common.js";
-
-const SLIDER_DEBOUNCE_MS = 3000;
 
 /** Outlet: On starts and stops charging, OutletInUse shows whether the cable is plugged in. */
 export class ChargingBinding extends ServiceBinding {
@@ -68,67 +66,112 @@ export class ChargingBinding extends ServiceBinding {
   }
 }
 
-/**
- * Lightbulb whose brightness is the charging limit. HomeKit has no better fitting control for a
- * percentage setpoint. Values snap to 50–100 % in steps of 10, as the vehicles require; the bulb
- * cannot be switched off.
- */
-export class ChargingLimitBinding extends ServiceBinding {
-  readonly feature = "chargingLimit";
-  protected readonly serviceType: ServiceType = this.ctx.hap.Service.Lightbulb;
-  protected readonly subtype = "charging-limit";
-  protected readonly displayName = "Charge Limit";
-
-  private readonly sendLimit = debounce(
-    SLIDER_DEBOUNCE_MS,
-    (percent: number) => {
-      this.command(
-        `Set charging limit to ${percent} %`,
-        (client) => client.setChargingLimit(percent),
-        {
-          operations: ["setChargingLimit"],
-          optimistic: {
-            part: "charging",
-            apply: (vehicle) => {
-              vehicle.charging ??= { isVehicleInSavedLocation: false };
-              vehicle.charging.settings = {
-                ...vehicle.charging.settings,
-                targetStateOfChargeInPercent: percent,
-              };
-            },
-          },
-        },
-      ).catch(() => {
-        // Already logged and reverted.
-      });
+/** The command options for a new charging limit. */
+function chargingLimitOptions(percent: number): CommandOptions {
+  return {
+    operations: ["setChargingLimit"],
+    optimistic: {
+      part: "charging",
+      apply: (vehicle) => {
+        vehicle.charging ??= { isVehicleInSavedLocation: false };
+        vehicle.charging.settings = {
+          ...vehicle.charging.settings,
+          targetStateOfChargeInPercent: percent,
+        };
+      },
     },
-  );
+  };
+}
+
+const PRESET_SUBTYPE = /^charging-limit-(\d+)$/;
+
+/**
+ * One switch per configured charging limit. A switch is on while the vehicle reports its limit;
+ * turning it on sets that limit, which turns the others off. It cannot be turned off directly,
+ * because "no limit" does not exist. A limit set in the MyŠkoda app that has no switch shows all
+ * switches off.
+ */
+export class ChargingLimitPresetBinding extends ServiceBinding {
+  readonly feature = "chargingLimitPresets";
+  protected readonly serviceType: ServiceType = this.ctx.hap.Service.Switch;
+  protected readonly subtype: string;
+  protected readonly displayName: string;
+
+  constructor(
+    ctx: BindingContext,
+    private readonly percent: number,
+  ) {
+    super(ctx);
+    this.subtype = `charging-limit-${percent}`;
+    this.displayName = `Charge Limit ${percent} %`;
+  }
+
+  /** All switches together form one feature in the support log. */
+  override get name(): string {
+    return "Charge Limit Switches";
+  }
 
   protected override configure(service: Service): void {
-    const { On, Brightness } = this.ctx.hap.Characteristic;
-    service.getCharacteristic(Brightness).setProps({ minStep: 10 });
-    service.getCharacteristic(On).onSet((value: CharacteristicValue) => {
-      if (value !== true) {
-        setTimeout(() => service.updateCharacteristic(On, true), 500).unref();
-      }
-    });
     service
-      .getCharacteristic(Brightness)
-      .onSet((value: CharacteristicValue) => {
-        const percent = normalizeChargingLimit(Number(value));
-        if (percent !== value) {
-          setTimeout(
-            () => service.updateCharacteristic(Brightness, percent),
-            500,
-          ).unref();
+      .getCharacteristic(this.ctx.hap.Characteristic.On)
+      .onSet(async (value: CharacteristicValue) => {
+        this.assertFresh();
+        if (value !== true) {
+          // There is no "no limit"; show the reported limit again.
+          setTimeout(() => {
+            this.rerender();
+          }, 500).unref();
+          return;
         }
-        this.sendLimit(percent);
+        const current = this.ctx.controller.snapshot?.vehicle;
+        if (current && chargingLimit(current) === this.percent) {
+          return;
+        }
+        await this.command(
+          `Set charging limit to ${this.percent} %`,
+          (client) => client.setChargingLimit(this.percent),
+          chargingLimitOptions(this.percent),
+        );
       });
   }
 
   protected render(_service: Service, vehicle: Vehicle): void {
-    const { On, Brightness } = this.ctx.hap.Characteristic;
-    this.set(On, true);
-    this.set(Brightness, chargingLimit(vehicle));
+    const limit = chargingLimit(vehicle);
+    this.set(
+      this.ctx.hap.Characteristic.On,
+      limit === undefined ? undefined : limit === this.percent,
+    );
   }
+}
+
+/**
+ * Removes switches for limits that are no longer configured, and the charge limit lightbulb of
+ * versions before 0.5.0. Returns whether a service was removed. Switches for configured limits are
+ * added and removed with the feature like any other service.
+ */
+export function removeUnusedChargingLimitServices(
+  ctx: BindingContext,
+): boolean {
+  const { accessory, hap, settings, log } = ctx;
+  const lightbulb = accessory.getServiceById(
+    hap.Service.Lightbulb,
+    "charging-limit",
+  );
+  if (lightbulb) {
+    accessory.removeService(lightbulb);
+    log.info("Replaced the Charge Limit lightbulb with charge limit switches");
+  }
+  const unused = accessory.services.filter((service) => {
+    const match = PRESET_SUBTYPE.exec(service.subtype ?? "");
+    return (
+      service.UUID === hap.Service.Switch.UUID &&
+      match !== null &&
+      !settings.chargingLimits.includes(Number(match[1]))
+    );
+  });
+  for (const service of unused) {
+    accessory.removeService(service);
+    log.info(`Removed ${service.displayName}`);
+  }
+  return lightbulb !== undefined || unused.length > 0;
 }

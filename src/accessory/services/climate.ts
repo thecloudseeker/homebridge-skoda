@@ -11,7 +11,7 @@ import {
   isActiveVentilationOn,
   isAuxiliaryHeatingOn,
 } from "../../vehicle/mapping.js";
-import { ServiceBinding, debounce, type ServiceType } from "./common.js";
+import { ServiceBinding, debounce, pause, type ServiceType } from "./common.js";
 
 const SLIDER_DEBOUNCE_MS = 3000;
 /** Pause between stop and start when the temperature changes while running; undocumented by the API. */
@@ -37,6 +37,7 @@ export class ClimateBinding extends ServiceBinding {
     (celsius: number) => {
       void this.restartWithTemperature(celsius);
     },
+    this.ctx.controller.signal,
   );
 
   protected override configure(service: Service): void {
@@ -86,6 +87,7 @@ export class ClimateBinding extends ServiceBinding {
       });
 
     const onThreshold = (value: CharacteristicValue) => {
+      this.assertFresh();
       const celsius = clampTemperature(Number(value));
       this.pendingCelsius = celsius;
       setTimeout(() => {
@@ -190,9 +192,12 @@ export class ClimateBinding extends ServiceBinding {
         (client) => client.stopAirConditioning(),
         { operations: ["stopAirConditioning"] },
       );
-      await new Promise((resolve) =>
-        setTimeout(resolve, RESTART_PAUSE_MS).unref(),
-      );
+      if (!(await pause(RESTART_PAUSE_MS, this.ctx.controller.signal))) {
+        this.ctx.log.info(
+          "Homebridge is shutting down; the air conditioning was not restarted",
+        );
+        return;
+      }
       await this.start();
     } catch {
       this.rerender();

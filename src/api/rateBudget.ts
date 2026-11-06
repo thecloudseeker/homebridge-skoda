@@ -77,18 +77,25 @@ export class RateBudget {
     return this.remaining() > (kind === "poll" ? this.reserve : 0);
   }
 
-  /** Records a request that is about to be sent. */
-  record(): void {
+  /** Records a request that is about to be sent. Returns its slot, for `refund()`. */
+  record(): number {
     const now = this.now();
     this.sent.push(now);
     if (this.server && now < this.server.resetAt) {
       this.server.remaining = Math.max(0, this.server.remaining - 1);
     }
+    return now;
   }
 
-  /** Gives back the most recent slot, for responses that do not count (401, 403, 429). */
-  refund(): void {
-    this.sent.pop();
+  /**
+   * Gives back the slot of a request whose response does not count (401, 403, 429). With requests
+   * in parallel, the refunded one is not always the newest.
+   */
+  refund(slot: number): void {
+    const index = this.sent.lastIndexOf(slot);
+    if (index !== -1) {
+      this.sent.splice(index, 1);
+    }
   }
 
   updateFromHeaders(headers: RateLimitHeaders): void {

@@ -151,7 +151,7 @@ export function featureSupport(
       return fuelLevelSupport(snapshot);
     case "charging":
       return operationSupport(snapshot, "startCharging", "stopCharging");
-    case "chargingLimit":
+    case "chargingLimitPresets":
       return operationSupport(snapshot, "setChargingLimit");
     case "climate":
       return operationSupport(

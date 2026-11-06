@@ -133,7 +133,7 @@ export class SkodaApiClient {
       headers["Content-Type"] = "application/json";
     }
 
-    budget.record();
+    const slot = budget.record();
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -172,7 +172,7 @@ export class SkodaApiClient {
     ) {
       // Documented: 401 and 403 do not consume quota, and a rejected 429 does not prolong the
       // window. Every other response counts, including one the vehicle declined.
-      budget.refund();
+      budget.refund(slot);
     }
     if (
       response.status === 429 &&

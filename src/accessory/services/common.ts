@@ -36,7 +36,11 @@ export interface BindingContext {
 
 /**
  * One HomeKit service backed by the vehicle cache. Values are pushed into the characteristics on
- * every cache update; HomeKit reads are answered by HAP from those values and never reach the API.
+ * every cache update; HomeKit reads are answered from those values and never reach the API.
+ *
+ * While the data is stale (no update for three polling intervals), sensors show a fault. Services
+ * without `StatusFault` (the controls and the battery) answer reads and writes with "No Response"
+ * instead, so the Home app never shows an old state as current.
  */
 export abstract class ServiceBinding {
   abstract readonly feature: keyof FeatureToggles;
@@ -44,6 +48,9 @@ export abstract class ServiceBinding {
   protected abstract readonly subtype: string;
   protected abstract readonly displayName: string;
   protected service: Service | undefined;
+  private stale = false;
+  /** Characteristics whose reads already check for stale data. */
+  private readonly guarded = new WeakSet<object>();
 
   constructor(protected readonly ctx: BindingContext) {}
 
@@ -105,8 +112,13 @@ export abstract class ServiceBinding {
     if (!this.service) {
       return;
     }
+    this.stale = stale;
     if (snapshot) {
       this.render(this.service, snapshot.vehicle);
+    }
+    if (!this.hasStatusFault) {
+      // After rendering, so characteristics that render added are covered too.
+      this.guardReads(this.service);
     }
     if (this.hasStatusFault) {
       const { StatusFault } = this.ctx.hap.Characteristic;
@@ -114,6 +126,32 @@ export abstract class ServiceBinding {
         StatusFault,
         stale ? StatusFault.GENERAL_FAULT : StatusFault.NO_FAULT,
       );
+    }
+  }
+
+  /** Throws "No Response" for HomeKit while the data is stale. */
+  protected assertFresh(): void {
+    if (this.stale) {
+      throw new this.ctx.hap.HapStatusError(SERVICE_COMMUNICATION_FAILURE);
+    }
+  }
+
+  /** Names do not come from the vehicle and stay readable, so the Home app keeps them. */
+  private guardReads(service: Service): void {
+    const { Name, ConfiguredName } = this.ctx.hap.Characteristic;
+    for (const characteristic of service.characteristics) {
+      if (
+        this.guarded.has(characteristic) ||
+        characteristic.UUID === Name.UUID ||
+        characteristic.UUID === ConfiguredName.UUID
+      ) {
+        continue;
+      }
+      this.guarded.add(characteristic);
+      characteristic.onGet(() => {
+        this.assertFresh();
+        return characteristic.value;
+      });
     }
   }
 
@@ -148,13 +186,14 @@ export abstract class ServiceBinding {
 
   /**
    * Runs a command for a set handler. A failure is reported to HomeKit as "no response" and the
-   * characteristic is reverted to the cached value.
+   * characteristic is reverted to the cached value. With stale data nothing is sent.
    */
   protected async command(
     label: string,
     send: (client: SkodaApiClient) => Promise<void>,
     options?: CommandOptions,
   ): Promise<void> {
+    this.assertFresh();
     try {
       await this.ctx.controller.runCommand(label, send, options);
     } catch {
@@ -166,19 +205,48 @@ export abstract class ServiceBinding {
   }
 }
 
-/** Delays an action until the value has not changed for `delayMs` (sliders send many updates). */
+/**
+ * Delays an action until the value has not changed for `delayMs` (sliders send many updates). A
+ * waiting action is dropped when `signal` aborts, e.g. when Homebridge shuts down.
+ */
 export function debounce<T>(
   delayMs: number,
   action: (value: T) => void,
+  signal?: AbortSignal,
 ): (value: T) => void {
   let timer: NodeJS.Timeout | undefined;
+  signal?.addEventListener("abort", () => {
+    clearTimeout(timer);
+  });
   return (value: T) => {
     clearTimeout(timer);
+    if (signal?.aborted) {
+      return;
+    }
     timer = setTimeout(() => {
       action(value);
     }, delayMs);
     timer.unref();
   };
+}
+
+/** Waits `ms`; resolves `false` right away when `signal` aborts first. */
+export function pause(ms: number, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(true);
+    }, ms);
+    timer.unref();
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /** Patches the charging part of the cached vehicle, creating it if needed. */

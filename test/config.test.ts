@@ -40,6 +40,75 @@ describe("parseVehicleConfig", () => {
     });
   });
 
+  it("reads the charge limits with a switch", () => {
+    expect(parse(base).settings.chargingLimits).toEqual([80, 90, 100]);
+    expect(
+      parse({ ...base, chargingLimits: [100, "70", 70] }).settings
+        .chargingLimits,
+    ).toEqual([70, 100]);
+
+    const { settings, warnings } = parse({
+      ...base,
+      chargingLimits: [85, 40, 90],
+    });
+    expect(settings.chargingLimits).toEqual([90]);
+    expect(warnings).toEqual([
+      "vehicles[0].chargingLimits: 85, 40 ignored; limits are 50–100 in steps of 10",
+    ]);
+
+    // The settings form saves an empty list when nothing is checked.
+    const empty = parse({ ...base, chargingLimits: [] });
+    expect(empty.settings.chargingLimits).toEqual([80, 90, 100]);
+    expect(empty.warnings).toEqual([]);
+
+    const invalid = parse({ ...base, chargingLimits: [45] });
+    expect(invalid.settings.chargingLimits).toEqual([80, 90, 100]);
+    expect(invalid.warnings).toHaveLength(2);
+  });
+
+  it("reads a real config saved by the 0.4.0 settings form", () => {
+    // Location, VIN and key replaced; the rest as saved for a combustion vehicle.
+    const { settings, warnings } = parse({
+      name: "Octi",
+      vin: TEST_VIN,
+      token: TEST_TOKEN,
+      drive: "combustion",
+      home: { lat: 50.4128, lon: 14.9069 },
+      lowBatteryThreshold: 40,
+      features: {
+        fuelLevel: true,
+        fuelLevelSensor: true,
+        climate: true,
+        auxiliaryHeating: false,
+        activeVentilation: true,
+        presence: true,
+        doors: true,
+        windows: true,
+        trunk: true,
+        bonnet: true,
+        sunroof: true,
+        lock: true,
+        lights: true,
+        windowHeating: false,
+      },
+    });
+    expect(warnings).toEqual([]);
+    expect(settings).toMatchObject({
+      name: "Octi",
+      lowBatteryThreshold: 40,
+      pollingIntervalMinutes: 5,
+      home: { latitude: 50.4128, longitude: 14.9069, radiusMeters: 150 },
+      chargingLimits: [80, 90, 100],
+    });
+    expect(settings.features).toEqual({
+      ...DEFAULT_FEATURES,
+      fuelLevelSensor: true,
+      auxiliaryHeating: false,
+      activeVentilation: true,
+      lights: true,
+    });
+  });
+
   it("normalizes the VIN and accepts an S-PIN and home", () => {
     const { settings } = parse({
       ...base,

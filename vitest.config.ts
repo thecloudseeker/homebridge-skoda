@@ -5,5 +5,10 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     environment: "node",
     restoreMocks: true,
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.ts"],
+      reporter: ["text-summary", "html", "lcov"],
+    },
   },
 });

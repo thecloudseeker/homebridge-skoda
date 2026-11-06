@@ -27,6 +27,14 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+        if: matrix.node != 24
+      - run: npm run test:coverage
+        if: matrix.node == 24
+      - uses: actions/upload-artifact@v7
+        if: matrix.node == 24
+        with:
+          name: coverage
+          path: coverage/
       - run: npm run build
 
   homebridge-1:

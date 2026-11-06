@@ -4,9 +4,15 @@ import {
   SkodaApiError,
   SkodaNetworkError,
 } from "../api/errors.js";
-import type { OperationName, Vehicle } from "../api/types.js";
+import type { OperationName } from "../api/types.js";
 import type { Logger } from "../util/logger.js";
+import { ExpectedState, type OptimisticPatch } from "./expectedState.js";
 import { describeReport } from "./mapping.js";
+import {
+  describeCommandError,
+  describeConfigError,
+  formatDelay,
+} from "./messages.js";
 import { mergeSnapshot, type VehicleSnapshot } from "./snapshot.js";
 
 const MINUTE = 60_000;
@@ -18,8 +24,6 @@ const CONFIG_ERROR_RETRY_MS = HOUR;
 const STALE_AFTER_INTERVALS = 3;
 const KEY_EXPIRY_WARNING_MS = 7 * 24 * HOUR;
 const KEY_EXPIRY_WARNING_REPEAT_MS = 24 * HOUR;
-/** An optimistic state is dropped after this long, even if the vehicle never reports back. */
-const OPTIMISTIC_TTL_MS = 15 * MINUTE;
 
 export interface VehicleControllerOptions {
   client: SkodaApiClient;
@@ -27,27 +31,11 @@ export interface VehicleControllerOptions {
   pollingIntervalMinutes: number;
 }
 
-/** Parts that carry a `carCapturedTimestamp`, which tells when the vehicle last reported them. */
-export type ReportedPart =
-  "charging" | "airConditioning" | "auxiliaryHeating" | "activeVentilation";
-
-export interface OptimisticPatch {
-  /** The part the command changes. */
-  part: ReportedPart;
-  apply: (vehicle: Vehicle) => void;
-}
-
 export interface CommandOptions {
   /** Operations the command uses; `operation-not-supported` marks them as unsupported. */
   operations?: readonly OperationName[];
   /** Expected state, shown until the vehicle reports the part again. */
   optimistic?: OptimisticPatch;
-}
-
-interface PendingPatch extends OptimisticPatch {
-  sentAt: number;
-  /** `carCapturedTimestamp` of the part when the command was sent. */
-  capturedBefore: string | undefined;
 }
 
 type Listener = (snapshot: VehicleSnapshot | undefined) => void;
@@ -65,10 +53,10 @@ export class VehicleController {
   private inFlight: Promise<void> | undefined;
   private failures = 0;
   private lastErrorKey: string | undefined;
-  private readonly keyExpiryWarnedAt = new Map<string, number>();
-  private pending: PendingPatch[] = [];
-  private readonly rejectedOperations = new Set<OperationName>();
+  private keyExpiryWarnedAt: number | undefined;
+  private readonly expected = new ExpectedState();
   private stopped = true;
+  private readonly shutdown = new AbortController();
 
   constructor(private readonly options: VehicleControllerOptions) {
     this.intervalMs = options.pollingIntervalMinutes * MINUTE;
@@ -86,6 +74,11 @@ export class VehicleController {
     );
   }
 
+  /** Aborted when Homebridge shuts down, so commands that are still waiting are dropped. */
+  get signal(): AbortSignal {
+    return this.shutdown.signal;
+  }
+
   onUpdate(listener: Listener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -96,10 +89,12 @@ export class VehicleController {
     this.schedule(0);
   }
 
+  /** Stops polling and drops waiting commands; called when Homebridge shuts down. */
   stop(): void {
     this.stopped = true;
     clearTimeout(this.pollTimer);
     clearTimeout(this.staleTimer);
+    this.shutdown.abort();
   }
 
   /**
@@ -129,37 +124,30 @@ export class VehicleController {
     }
     this.options.log.info(`${label}: accepted by the vehicle`);
     if (optimistic) {
-      this.pending.push({
-        ...optimistic,
-        sentAt: Date.now(),
-        capturedBefore: capturedAt(this.current?.vehicle, optimistic.part),
-      });
-      if (this.current) {
-        const patched = structuredClone(this.current);
-        optimistic.apply(patched.vehicle);
+      const patched = this.expected.add(optimistic, this.current);
+      if (patched) {
         this.current = patched;
         this.emit();
       }
     }
   }
 
-  /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day per key. */
-  noteKeyExpiry(keyLabel: string, expiresAt: Date, now = Date.now()): void {
+  /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day. */
+  noteKeyExpiry(expiresAt: Date, now = Date.now()): void {
     const remainingMs = expiresAt.getTime() - now;
     if (remainingMs > KEY_EXPIRY_WARNING_MS) {
       return;
     }
-    const lastWarned = this.keyExpiryWarnedAt.get(keyLabel);
     if (
-      lastWarned !== undefined &&
-      now - lastWarned < KEY_EXPIRY_WARNING_REPEAT_MS
+      this.keyExpiryWarnedAt !== undefined &&
+      now - this.keyExpiryWarnedAt < KEY_EXPIRY_WARNING_REPEAT_MS
     ) {
       return;
     }
-    this.keyExpiryWarnedAt.set(keyLabel, now);
+    this.keyExpiryWarnedAt = now;
     const days = Math.max(0, Math.floor(remainingMs / (24 * HOUR)));
     this.options.log.warn(
-      `The ${keyLabel} expires on ${expiresAt.toISOString()} (in ${days} day(s)). ` +
+      `The API key expires on ${expiresAt.toISOString()} (in ${days} day(s)). ` +
         "Renew it in the MyŠkoda app under Profile > Smart Home (https://go.skoda.eu/api-keys).",
     );
   }
@@ -190,7 +178,7 @@ export class VehicleController {
       const response = await this.options.client.getVehicle();
       // Before merging, so the line shows what the vehicle reported, not the expected state.
       const reported = describeReport(response.vehicle);
-      this.current = this.applyLocalState(
+      this.current = this.expected.apply(
         mergeSnapshot(this.current, response, Date.now()),
       );
       if (this.failures > 0 || this.lastErrorKey) {
@@ -262,49 +250,15 @@ export class VehicleController {
     this.schedule(this.backoffMs());
   }
 
-  /**
-   * Re-applies optimistic patches the vehicle has not confirmed yet, and hides operations the
-   * vehicle rejected as unsupported.
-   */
-  private applyLocalState(snapshot: VehicleSnapshot): VehicleSnapshot {
-    const now = snapshot.fetchedAt;
-    this.pending = this.pending.filter(
-      (patch) =>
-        now - patch.sentAt < OPTIMISTIC_TTL_MS &&
-        !reportedSince(snapshot.vehicle, patch),
-    );
-    if (this.pending.length === 0 && this.rejectedOperations.size === 0) {
-      return snapshot;
-    }
-    const patched = structuredClone(snapshot);
-    for (const patch of this.pending) {
-      patch.apply(patched.vehicle);
-    }
-    this.removeRejectedOperations(patched.vehicle);
-    return patched;
-  }
-
-  /** Remembered until restart: the vehicle lacks the capability, so retrying does not help. */
+  /** The vehicle lacks the capability, so its control is removed until restart. */
   private rejectOperations(operations: readonly OperationName[]): void {
-    for (const name of operations) {
-      this.rejectedOperations.add(name);
-    }
+    this.expected.reject(operations);
     this.options.log.warn(
       `The vehicle does not support ${operations.join(", ")}; the control will be removed`,
     );
     if (this.current) {
-      const patched = structuredClone(this.current);
-      this.removeRejectedOperations(patched.vehicle);
-      this.current = patched;
+      this.current = this.expected.withoutRejected(this.current);
       this.emit();
-    }
-  }
-
-  private removeRejectedOperations(vehicle: Vehicle): void {
-    if (vehicle.operations && this.rejectedOperations.size > 0) {
-      vehicle.operations = vehicle.operations.filter(
-        (operation) => !this.rejectedOperations.has(operation.name),
-      );
     }
   }
 
@@ -346,72 +300,4 @@ export class VehicleController {
       }
     }
   }
-}
-
-function capturedAt(
-  vehicle: Vehicle | undefined,
-  part: ReportedPart,
-): string | undefined {
-  return vehicle?.[part]?.carCapturedTimestamp;
-}
-
-/** The vehicle has reported the part since the command: a new timestamp, captured after sending. */
-function reportedSince(vehicle: Vehicle, patch: PendingPatch): boolean {
-  const captured = capturedAt(vehicle, patch.part);
-  if (captured === undefined || captured === patch.capturedBefore) {
-    return false;
-  }
-  const capturedMs = Date.parse(captured);
-  return Number.isFinite(capturedMs) && capturedMs > patch.sentAt;
-}
-
-function describeConfigError(error: SkodaApiError): string {
-  switch (error.problemType) {
-    case "api-key-expired":
-      return "The API key has expired. Create or update a key in the MyŠkoda app and update the plugin config.";
-    case "api-key-not-authorized":
-      return "The API key does not cover this vehicle or operation. Check the key and the VIN in the plugin config.";
-    case "operation-not-authorized":
-      return "The vehicle refused the request for the user the API key belongs to.";
-  }
-  switch (error.status) {
-    case 401:
-      // Observed for unknown or deleted keys: `about:blank` with "Missing or invalid API key."
-      return "The API key is invalid or no longer exists. Check the key in the plugin config or create a new one in the MyŠkoda app.";
-    case 404:
-      return "No vehicle found for the configured VIN.";
-  }
-  return `Access denied (${error.message}).`;
-}
-
-export function describeCommandError(error: unknown): string {
-  if (error instanceof BudgetExhaustedError) {
-    return `rate limit budget exhausted until ${new Date(error.availableAt).toLocaleTimeString()}`;
-  }
-  if (error instanceof SkodaApiError) {
-    switch (error.problemType) {
-      case "operation-not-supported":
-        return "the vehicle does not support this operation";
-      case "operation-disabled":
-        return "this function is currently disabled for the vehicle";
-      case "vehicle-not-accepting-requests":
-        return "the vehicle declined the request, e.g. because its 12 V battery is low; try again later";
-      case "rate-limit-exceeded":
-        return "rate limit exceeded";
-      case "api-key-expired":
-      case "api-key-not-authorized":
-      case "operation-not-authorized":
-        return describeConfigError(error);
-    }
-    return error.isAuthError || error.status === 404
-      ? describeConfigError(error)
-      : error.message;
-  }
-  return error instanceof Error ? error.message : String(error);
-}
-
-function formatDelay(ms: number): string {
-  return ms >= MINUTE
-    ? `${Math.round(ms / MINUTE)} min`
-    : `${Math.round(ms / 1000)} s`;
 }

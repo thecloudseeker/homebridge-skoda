@@ -14,7 +14,6 @@ import {
   isPlugConnected,
   isPlugLocked,
   isWindowHeatingOn,
-  normalizeChargingLimit,
   stateOfCharge,
   toCelsius,
 } from "../src/vehicle/mapping.js";
@@ -122,13 +121,6 @@ describe("charging limit mapping", () => {
   it("reads the target state of charge", () => {
     expect(chargingLimit(enyaq.vehicle)).toBe(80);
     expect(chargingLimit(combustion.vehicle)).toBeUndefined();
-  });
-
-  it("normalizes to 50–100 in steps of 10", () => {
-    expect(normalizeChargingLimit(84)).toBe(80);
-    expect(normalizeChargingLimit(85)).toBe(90);
-    expect(normalizeChargingLimit(20)).toBe(50);
-    expect(normalizeChargingLimit(100)).toBe(100);
   });
 });
 
@@ -294,7 +286,7 @@ describe("feature support", () => {
     const snapshot = snapshotOf(enyaq);
     expect(featureSupport(snapshot, "battery")).toBe(true);
     expect(featureSupport(snapshot, "charging")).toBe(true);
-    expect(featureSupport(snapshot, "chargingLimit")).toBe(true);
+    expect(featureSupport(snapshot, "chargingLimitPresets")).toBe(true);
     expect(featureSupport(snapshot, "climate")).toBe(true);
     expect(featureSupport(snapshot, "auxiliaryHeating")).toBe(false);
     expect(featureSupport(snapshot, "activeVentilation")).toBe(true);
@@ -404,7 +396,7 @@ describe("anonymized live response of a gasoline vehicle", () => {
         "fuelLevel",
         "fuelLevelSensor",
         "charging",
-        "chargingLimit",
+        "chargingLimitPresets",
         "climate",
         "auxiliaryHeating",
         "activeVentilation",

@@ -405,28 +405,19 @@ describe("VehicleController key expiry", () => {
   it("warns within seven days of expiry, at most daily", () => {
     const { controller, log } = setup();
     const now = Date.now();
-    controller.noteKeyExpiry(
-      "API key",
-      new Date(now + 30 * 24 * 60 * MINUTE),
-      now,
-    );
+    controller.noteKeyExpiry(new Date(now + 30 * 24 * 60 * MINUTE), now);
     expect(log.warn).not.toHaveBeenCalled();
+    controller.noteKeyExpiry(new Date(now + 3 * 24 * 60 * MINUTE), now);
     controller.noteKeyExpiry(
-      "API key",
-      new Date(now + 3 * 24 * 60 * MINUTE),
-      now,
-    );
-    controller.noteKeyExpiry(
-      "API key",
       new Date(now + 3 * 24 * 60 * MINUTE),
       now + MINUTE,
     );
     expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn.mock.calls[0]?.[0]).toContain("The API key expires on");
     expect(log.warn.mock.calls[0]?.[0]).toContain("in 3 day(s)");
     controller.noteKeyExpiry(
-      "command key",
-      new Date(now + 24 * 60 * MINUTE),
-      now,
+      new Date(now + 3 * 24 * 60 * MINUTE),
+      now + 24 * 60 * MINUTE,
     );
     expect(log.warn).toHaveBeenCalledTimes(2);
   });

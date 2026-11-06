@@ -93,10 +93,26 @@ describe("RateBudget", () => {
 
   it("refunds requests that do not count", () => {
     const budget = new RateBudget({ limit: 1, reserve: 0 });
-    budget.record();
+    const slot = budget.record();
     expect(budget.remaining()).toBe(0);
-    budget.refund();
+    budget.refund(slot);
     expect(budget.remaining()).toBe(1);
+  });
+
+  it("refunds the slot of the request that did not count, not the newest", () => {
+    // A poll and a command at the same time: the earlier one is refunded after the later one was sent.
+    const c = clock();
+    const budget = new RateBudget({ limit: 2, reserve: 0, now: c.now });
+    const first = budget.record();
+    c.advance(10 * MINUTE);
+    budget.record();
+    budget.refund(first);
+    expect(budget.remaining()).toBe(1);
+    // The remaining request is the second one, so a slot frees up 60 minutes after it.
+    c.advance(51 * MINUTE);
+    expect(budget.remaining()).toBe(1);
+    c.advance(10 * MINUTE);
+    expect(budget.remaining()).toBe(2);
   });
 
   it("trusts stricter server headers until their reset", () => {

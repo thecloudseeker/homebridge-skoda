@@ -16,8 +16,8 @@ export interface FeatureToggles {
   fuelLevelSensor: boolean;
   /** Outlet to start and stop charging. */
   charging: boolean;
-  /** Lightbulb whose brightness sets the charging limit. */
-  chargingLimit: boolean;
+  /** One switch per configured charging limit; turning one on sets that limit. */
+  chargingLimitPresets: boolean;
   /** Heater cooler for the air conditioning. */
   climate: boolean;
   /** Switch for the auxiliary heating; needs the S-PIN. */
@@ -49,7 +49,7 @@ export const DEFAULT_FEATURES: Readonly<FeatureToggles> = {
   fuelLevel: true,
   fuelLevelSensor: false,
   charging: true,
-  chargingLimit: true,
+  chargingLimitPresets: true,
   climate: true,
   auxiliaryHeating: true,
   activeVentilation: false,
@@ -84,6 +84,8 @@ export interface VehicleSettings {
   climateTemperature: number;
   airConditioningWithoutExternalPower: boolean | undefined;
   auxiliaryHeatingDurationMinutes: number | undefined;
+  /** Charging limits in % that get a switch, sorted, each 50–100 in steps of 10. */
+  chargingLimits: number[];
   features: FeatureToggles;
 }
 
@@ -100,6 +102,7 @@ export const DEFAULT_CLIMATE_TEMPERATURE = 21;
 export const CLIMATE_TEMPERATURE_MIN = 16;
 export const CLIMATE_TEMPERATURE_MAX = 29.5;
 export const CLIMATE_TEMPERATURE_STEP = 0.5;
+export const DEFAULT_CHARGING_LIMITS: readonly number[] = [80, 90, 100];
 
 /** Options of earlier versions that are ignored now: a second key brings no extra requests, and
  * the expected state after a command makes an extra refresh unnecessary. */
@@ -243,6 +246,11 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
   const auxiliaryHeatingDuration = optionalNumber(
     raw.auxiliaryHeatingDurationMinutes,
   );
+  const chargingLimits = parseChargingLimits(
+    raw.chargingLimits,
+    `${label}.chargingLimits`,
+    warnings,
+  );
 
   if (errors.length > 0 || !vin || !token) {
     return { ok: false, errors };
@@ -267,6 +275,7 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
         auxiliaryHeatingDuration === undefined
           ? undefined
           : clamp(Math.round(auxiliaryHeatingDuration), 1, 60),
+      chargingLimits,
       features,
     },
   };
@@ -313,6 +322,49 @@ function parseAllowance(value: unknown): boolean | undefined {
     return false;
   }
   return undefined;
+}
+
+/**
+ * The limits that get a switch. Vehicles accept 50–100 % in steps of 10; other values are dropped
+ * with a warning. Without any value (the settings form saves an empty list when nothing is checked)
+ * the defaults apply; to hide the switches, turn off `features.chargingLimitPresets`.
+ */
+function parseChargingLimits(
+  raw: unknown,
+  label: string,
+  warnings: string[],
+): number[] {
+  const values = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  if (values.length === 0) {
+    return [...DEFAULT_CHARGING_LIMITS];
+  }
+  const limits = new Set<number>();
+  const invalid: string[] = [];
+  for (const value of values) {
+    const percent = optionalNumber(value);
+    if (
+      percent !== undefined &&
+      percent >= 50 &&
+      percent <= 100 &&
+      percent % 10 === 0
+    ) {
+      limits.add(percent);
+    } else {
+      invalid.push(JSON.stringify(value));
+    }
+  }
+  if (invalid.length > 0) {
+    warnings.push(
+      `${label}: ${invalid.join(", ")} ignored; limits are 50–100 in steps of 10`,
+    );
+  }
+  if (limits.size === 0) {
+    warnings.push(
+      `${label} has no valid limit; using ${DEFAULT_CHARGING_LIMITS.join(", ")}`,
+    );
+    return [...DEFAULT_CHARGING_LIMITS];
+  }
+  return [...limits].sort((a, b) => a - b);
 }
 
 function clamp(value: number, min: number, max: number): number {

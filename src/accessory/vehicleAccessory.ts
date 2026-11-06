@@ -14,7 +14,11 @@ import {
   contactBindings,
   removeLegacyLockSensor,
 } from "./services/body.js";
-import { ChargingBinding, ChargingLimitBinding } from "./services/charging.js";
+import {
+  ChargingBinding,
+  ChargingLimitPresetBinding,
+  removeUnusedChargingLimitServices,
+} from "./services/charging.js";
 import {
   ActiveVentilationBinding,
   AuxiliaryHeatingBinding,
@@ -57,7 +61,9 @@ export class VehicleAccessory {
       new FuelBinding(ctx),
       new FuelLevelSensorBinding(ctx),
       new ChargingBinding(ctx),
-      new ChargingLimitBinding(ctx),
+      ...ctx.settings.chargingLimits.map(
+        (percent) => new ChargingLimitPresetBinding(ctx, percent),
+      ),
       new ClimateBinding(ctx),
       new AuxiliaryHeatingBinding(ctx),
       new ActiveVentilationBinding(ctx),
@@ -74,7 +80,8 @@ export class VehicleAccessory {
       .setCharacteristic(Characteristic.SerialNumber, maskVin(ctx.settings.vin))
       .setCharacteristic(Characteristic.FirmwareRevision, PLUGIN_VERSION);
 
-    if (removeLegacyLockSensor(ctx)) {
+    const removedLock = removeLegacyLockSensor(ctx);
+    if (removeUnusedChargingLimitServices(ctx) || removedLock) {
       ctx.onServicesChanged?.();
     }
     this.sync(ctx.controller.snapshot);
@@ -134,8 +141,11 @@ export class VehicleAccessory {
    * for their vehicle without trying each one, and which of them are turned off in the config.
    */
   private logSupport(): void {
+    // Several bindings can share a feature (the charge limit switches); list each feature once.
     const supported = this.bindings.filter(
-      (binding) => this.knownSupport.get(binding.feature) === true,
+      (binding, index, all) =>
+        this.knownSupport.get(binding.feature) === true &&
+        all.findIndex((other) => other.feature === binding.feature) === index,
     );
     const { features } = this.ctx.settings;
     const shown = supported.filter((binding) => features[binding.feature]);

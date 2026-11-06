@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { Ajv } from "ajv";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CHARGING_LIMITS,
   DEFAULT_FEATURES,
   parseVehicleConfig,
   MIN_POLLING_INTERVAL_MINUTES,
@@ -47,6 +48,12 @@ describe("config.schema.json", () => {
     for (const [key, value] of Object.entries(DEFAULT_FEATURES)) {
       expect(features[key]?.default, key).toBe(value);
     }
+  });
+
+  it("shows the default charge limits as checked", () => {
+    expect((vehicle.chargingLimits as { default?: unknown }).default).toEqual(
+      DEFAULT_CHARGING_LIMITS,
+    );
   });
 
   it("enforces the rate-limit minimum for the polling interval", () => {
@@ -105,7 +112,7 @@ function validatorSchema(): object {
  */
 const SAVED_CONFIGS: Record<
   string,
-  { vehicle: object; allowance: boolean | undefined }
+  { vehicle: object; allowance: boolean | undefined; bridge?: object }
 > = {
   "0.1.x and 0.2.0, checkbox and removed options": {
     vehicle: {
@@ -115,7 +122,7 @@ const SAVED_CONFIGS: Record<
       commandToken: "old-second-key",
       commandRefreshDelaySeconds: 90,
       airConditioningWithoutExternalPower: false,
-      features: { battery: true, climate: true },
+      features: { battery: true, chargingLimit: true, climate: true },
     },
     allowance: false,
   },
@@ -141,6 +148,51 @@ const SAVED_CONFIGS: Record<
     },
     allowance: true,
   },
+  // A real config.json saved by the 0.4.0 settings form, with the API key, the VIN, the home
+  // location and the bridge replaced. It also carries the platform's `_bridge` block.
+  "0.4.0, saved by the settings form for a combustion vehicle": {
+    vehicle: {
+      name: "Octi",
+      vin: TEST_VIN,
+      token: TEST_TOKEN,
+      drive: "combustion",
+      home: { lat: 50.4128, lon: 14.9069 },
+      lowBatteryThreshold: 40,
+      features: {
+        fuelLevel: true,
+        fuelLevelSensor: true,
+        climate: true,
+        auxiliaryHeating: false,
+        activeVentilation: true,
+        presence: true,
+        doors: true,
+        windows: true,
+        trunk: true,
+        bonnet: true,
+        sunroof: true,
+        lock: true,
+        lights: true,
+        windowHeating: false,
+      },
+    },
+    allowance: undefined,
+    bridge: {
+      username: "0E:00:00:00:00:01",
+      port: 51826,
+      name: "Homebridge Škoda",
+    },
+  },
+  "0.5.0, charge limit switches": {
+    vehicle: {
+      name: "Enyaq",
+      vin: TEST_VIN,
+      token: TEST_TOKEN,
+      drive: "electric",
+      chargingLimits: [70, 80, 100],
+      features: { chargingLimitPresets: true, pluggedIn: true },
+    },
+    allowance: undefined,
+  },
 };
 
 describe("configs saved by earlier versions", () => {
@@ -148,11 +200,15 @@ describe("configs saved by earlier versions", () => {
     validatorSchema(),
   );
 
-  for (const [version, { vehicle: saved, allowance }] of Object.entries(
+  for (const [version, { vehicle: saved, allowance, bridge }] of Object.entries(
     SAVED_CONFIGS,
   )) {
     it(`stay valid and keep their meaning: ${version}`, () => {
-      const valid = validate({ platform: PLATFORM_NAME, vehicles: [saved] });
+      const valid = validate({
+        platform: PLATFORM_NAME,
+        vehicles: [saved],
+        ...(bridge ? { _bridge: bridge } : {}),
+      });
       expect(validate.errors ?? [], version).toEqual([]);
       expect(valid).toBe(true);
 

@@ -137,6 +137,17 @@
               "maximum": 60,
               "description": "1–60. Empty uses the vehicle setting."
             },
+            "chargingLimits": {
+              "title": "Charge limits with a switch (%)",
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "enum": [50, 60, 70, 80, 90, 100]
+              },
+              "default": [80, 90, 100],
+              "description": "None checked uses 80, 90 and 100."
+            },
             "features": {
               "title": "Features",
               "type": "object",
@@ -171,11 +182,11 @@
                   "default": true,
                   "description": "Outlet: on starts, off stops charging."
                 },
-                "chargingLimit": {
-                  "title": "Charge limit (lightbulb brightness)",
+                "chargingLimitPresets": {
+                  "title": "Charge limit switches",
                   "type": "boolean",
                   "default": true,
-                  "description": "Brightness = limit, 50–100 %."
+                  "description": "One switch per limit below. Turning one on sets that limit."
                 },
                 "climate": {
                   "title": "Air conditioning (heater cooler)",
@@ -350,7 +361,19 @@
               "expanded": false,
               "items": [
                 "vehicles[].features.charging",
-                "vehicles[].features.chargingLimit",
+                "vehicles[].features.chargingLimitPresets",
+                {
+                  "key": "vehicles[].chargingLimits",
+                  "type": "checkboxes",
+                  "titleMap": [
+                    { "value": 50, "name": "50 %" },
+                    { "value": 60, "name": "60 %" },
+                    { "value": 70, "name": "70 %" },
+                    { "value": 80, "name": "80 %" },
+                    { "value": 90, "name": "90 %" },
+                    { "value": 100, "name": "100 %" }
+                  ]
+                },
                 "vehicles[].features.pluggedIn",
                 "vehicles[].features.plugLock"
               ],
