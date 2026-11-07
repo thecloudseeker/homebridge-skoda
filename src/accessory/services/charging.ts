@@ -103,7 +103,8 @@ export class ChargingLimitPresetBinding extends ServiceBinding {
   ) {
     super(ctx);
     this.subtype = `charging-limit-${percent}`;
-    this.displayName = `Charge Limit ${percent} %`;
+    // HomeKit names must start and end with a letter or digit, so no "%".
+    this.displayName = `Charge Limit ${percent}`;
   }
 
   /** All switches together form one feature in the support log. */
@@ -115,7 +116,7 @@ export class ChargingLimitPresetBinding extends ServiceBinding {
     service
       .getCharacteristic(this.ctx.hap.Characteristic.On)
       .onSet(async (value: CharacteristicValue) => {
-        this.assertFresh();
+        this.assertCanSend();
         if (value !== true) {
           // There is no "no limit"; show the reported limit again.
           setTimeout(() => {

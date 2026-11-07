@@ -314,6 +314,37 @@ describe("VehicleController commands", () => {
     controller.stop();
   });
 
+  it("falls back to the vehicle's own report, not the expected state, for an unavailable part", async () => {
+    // After the first poll the charging part is temporarily unavailable for good.
+    let polls = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>((_url, init) => {
+      if (init?.method !== "GET") {
+        return Promise.resolve(mockResponse({ status: 202 }));
+      }
+      const body = loadFixture("enyaq");
+      if (polls++ > 0) {
+        delete body.vehicle.charging;
+        body.errors = [{ type: "CHARGING_UNAVAILABLE" }];
+      }
+      return Promise.resolve(mockResponse({ body }));
+    });
+    const { controller } = setup(fetch);
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.runCommand("Stop charging", (c) => c.stopCharging(), {
+      optimistic: stopChargingPatch,
+    });
+    const state = () => controller.snapshot?.vehicle.charging?.status?.state;
+    await vi.advanceTimersByTimeAsync(10 * MINUTE);
+    expect(state()).toBe("READY_FOR_CHARGING");
+    // After 15 minutes the expected state ends, and the last report shows again.
+    await vi.advanceTimersByTimeAsync(5 * MINUTE);
+    expect(state()).toBe("CHARGING");
+    await vi.advanceTimersByTimeAsync(10 * MINUTE);
+    expect(state()).toBe("CHARGING");
+    controller.stop();
+  });
+
   it("sends no extra request after a command", async () => {
     const fetch = routedFetch();
     const { controller } = setup(fetch);
@@ -398,6 +429,23 @@ describe("VehicleController commands", () => {
       name: "BudgetExhaustedError",
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("VehicleController blocked commands", () => {
+  it("logs once that commands are blocked, until the next successful update", async () => {
+    const { controller, log } = setup();
+    controller.noteBlockedCommand();
+    controller.noteBlockedCommand();
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith(
+      "No current vehicle data; commands from HomeKit are not sent until the next successful update",
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.noteBlockedCommand();
+    expect(log.warn).toHaveBeenCalledTimes(2);
+    controller.stop();
   });
 });
 

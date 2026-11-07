@@ -48,7 +48,7 @@
                   "enum": ["hybrid"]
                 },
                 {
-                  "title": "Combustion (petrol, diesel, CNG, LPG)",
+                  "title": "Combustion or mild hybrid (petrol, diesel, CNG, LPG)",
                   "enum": ["combustion"]
                 }
               ],

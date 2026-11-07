@@ -139,7 +139,6 @@ function optionalNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-/** Validates and normalizes one entry of the `vehicles` array. Error messages never contain secrets. */
 /** The normalized VIN of a config entry, or undefined when it is missing or invalid. */
 export function configuredVin(raw: unknown): string | undefined {
   if (!isObject(raw)) {
@@ -153,6 +152,7 @@ function normalizeVin(value: unknown): string | undefined {
   return optionalString(value)?.toUpperCase().replace(/\s+/g, "");
 }
 
+/** Validates and normalizes one entry of the `vehicles` array. Error messages never contain secrets. */
 export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
   const label = `vehicles[${index}]`;
   if (!isObject(raw)) {
@@ -186,6 +186,20 @@ export function parseVehicleConfig(raw: unknown, index: number): ConfigResult {
       if (typeof value === "boolean") {
         features[key] = value;
       }
+    }
+    // Before 0.5.0 the charge limit was a lightbulb. Whoever turned it off keeps it off. The
+    // settings form no longer shows the old option and shows the switches as on, so the next save
+    // there would turn them on; the log says so until the new option is set.
+    if (
+      raw.features.chargingLimit === false &&
+      typeof raw.features.chargingLimitPresets !== "boolean"
+    ) {
+      features.chargingLimitPresets = false;
+      warnings.push(
+        `${label}.features.chargingLimit is replaced by chargingLimitPresets. The charge limit switches stay off, ` +
+          `as the lightbulb was. The settings show "Charge limit switches" as on: uncheck it and save to keep them off, ` +
+          `or save as shown to turn them on`,
+      );
     }
   }
 

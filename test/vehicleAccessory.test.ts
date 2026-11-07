@@ -488,7 +488,7 @@ describe("VehicleAccessory", () => {
   });
 
   it("answers the controls with no response while the data is stale", async () => {
-    const { accessory, controller, fetch } = setup([
+    const { accessory, controller, fetch, log } = setup([
       mockResponse({ body: loadFixture("enyaq") }),
       ...Array.from({ length: 5 }, () =>
         mockResponse({ status: 503, body: problem(503) }),
@@ -524,6 +524,12 @@ describe("VehicleAccessory", () => {
     expect(
       fetch.mock.calls.slice(sent).filter(([, init]) => init?.method !== "GET"),
     ).toEqual([]);
+    // Four blocked changes, one explanation in the log.
+    expect(
+      log.warn.mock.calls.filter(([message]) =>
+        String(message).startsWith("No current vehicle data"),
+      ),
+    ).toHaveLength(1);
     // Names stay readable, so the Home app keeps them.
     expect(
       await accessory
@@ -572,6 +578,37 @@ describe("VehicleAccessory", () => {
     expect(charging()).toBeUndefined();
     expect(accessory.getServiceById(Service.Battery, "battery")).toBeDefined();
     expect(onServicesChanged).toHaveBeenCalledTimes(2);
+    controller.stop();
+  });
+
+  it("keeps all charge limit switches after one update without the operation, removes them after two", async () => {
+    // The switches share one feature; one odd update must count once, not once per switch.
+    const withoutLimit = () => {
+      const body = loadFixture("enyaq");
+      body.vehicle.operations = body.vehicle.operations!.filter(
+        (o) => o.name !== "setChargingLimit",
+      );
+      return mockResponse({ body });
+    };
+    const { accessory, controller } = setup([
+      mockResponse({ body: loadFixture("enyaq") }),
+      withoutLimit(),
+      withoutLimit(),
+    ]);
+    const switches = () =>
+      [80, 90, 100].map(
+        (percent) =>
+          accessory.getServiceById(
+            Service.Switch,
+            `charging-limit-${percent}`,
+          ) !== undefined,
+      );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(switches()).toEqual([true, true, true]);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(switches()).toEqual([false, false, false]);
     controller.stop();
   });
 
@@ -732,12 +769,12 @@ describe("VehicleAccessory", () => {
       (cached) => {
         cached.addService(
           Service.Switch,
-          "Charge Limit 70 %",
+          "Charge Limit 70",
           "charging-limit-70",
         );
         cached.addService(
           Service.Switch,
-          "Charge Limit 80 %",
+          "Charge Limit 80",
           "charging-limit-80",
         );
       },
@@ -846,6 +883,88 @@ describe("VehicleAccessory", () => {
     expect(log.info).toHaveBeenCalledWith(
       "Homebridge is shutting down; the air conditioning was not restarted",
     );
+  });
+
+  it("does not restart the air conditioning when the data turns stale during the slider delay", async () => {
+    // The first poll reports it running; every later poll fails, so the data turns stale after
+    // three intervals (15 minutes).
+    let polls = 0;
+    const { accessory, controller, fetch, log } = setup([]);
+    fetch.mockImplementation((_url, init) => {
+      if (init?.method !== "GET") {
+        return Promise.resolve(mockResponse({ status: 202 }));
+      }
+      if (polls++ > 0) {
+        return Promise.resolve(
+          mockResponse({ status: 503, body: problem(503) }),
+        );
+      }
+      const running = loadFixture("enyaq");
+      running.vehicle.airConditioning!.state = "HEATING";
+      return Promise.resolve(mockResponse({ body: running }));
+    });
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const threshold = accessory
+      .getServiceById(Service.HeaterCooler, "climate")!
+      .getCharacteristic(Characteristic.HeatingThresholdTemperature);
+
+    await vi.advanceTimersByTimeAsync(15 * 60_000 - 1000);
+    await threshold.handleSetRequest(23);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toEqual([]);
+    expect(log.info).toHaveBeenCalledWith(
+      "No current vehicle data; target temperature 23 °C will be used on the next start",
+    );
+    controller.stop();
+  });
+
+  it("only uses names that HomeKit accepts", async () => {
+    // HAP-NodeJS's rule (util/checkName): start and end with a letter or digit, and only some
+    // punctuation in between. A name like "Charge Limit 80 %" may stop the Home app from adding
+    // the vehicle.
+    const valid =
+      /^[\p{L}\p{N}][\p{L}\p{N}\p{Zs}\u2019'&!._:;()/,-]*[\p{L}\p{N}]$/u;
+    const { accessory, controller } = setup(
+      [],
+      settingsFor({
+        features: {
+          stateOfChargeSensor: true,
+          activeVentilation: true,
+          lights: true,
+          windowHeating: true,
+          plugLock: true,
+          pluggedIn: true,
+        },
+        chargingLimits: [50, 60, 70, 80, 90, 100],
+      }),
+    );
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const names = accessory.services.flatMap((service) =>
+      [Characteristic.Name, Characteristic.ConfiguredName]
+        .filter((name) => service.testCharacteristic(name))
+        .map((name) => service.getCharacteristic(name).value as string),
+    );
+    expect(names.length).toBeGreaterThan(15);
+    expect(names.filter((name) => !valid.test(name))).toEqual([]);
+    controller.stop();
+  });
+
+  it("creates the air conditioning without HAP warnings about its temperature limits", async () => {
+    const warnings: unknown[] = [];
+    const { controller } = setup([], settingsFor(), (accessory) => {
+      (accessory as unknown as hapNodejs.Accessory).on(
+        "characteristic-warning",
+        (warning) => warnings.push(warning),
+      );
+    });
+    controller.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(warnings).toEqual([]);
+    controller.stop();
   });
 
   it("shows the expected state for at most 15 minutes if the vehicle never reports back", async () => {

@@ -1,6 +1,7 @@
 # Roadmap
 
-Planned releases
+Planned releases, based on an audit of 0.3.0 against the planned feature set. Each item is meant
+to fit into one pull request. Order within a release is the suggested order of work.
 
 Upstream changes (API, skoda-public-api, Home Assistant) are tracked separately in
 [MAINTAINING.md](MAINTAINING.md) and may reorder this list. One question is tracked there rather
@@ -15,7 +16,9 @@ Each release lists the questions that have to be answered before or during its w
 ## 0.5.0: Charge limit presets, tests and verification
 
 In progress (see the [changelog](../CHANGELOG.md)): one switch per configured limit replaces the
-lightbulb, which is removed. It also takes everything from the former 0.6.0 that needs no vehicle:
+lightbulb. The lightbulb is removed right away instead of after one more release, because 0.5.0 is
+still in beta; a config that had turned it off keeps the switches off. It also takes everything
+from the former 0.6.0 that needs no vehicle:
 stale data on the controls, the split of `VehicleController`, a test with a real saved config,
 the missing tests and the clean-ups. What needs a vehicle is in
 [Needs a charging vehicle](#needs-a-charging-vehicle).

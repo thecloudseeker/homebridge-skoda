@@ -47,12 +47,18 @@ export class ClimateBinding extends ServiceBinding {
       maxValue: CLIMATE_TEMPERATURE_MAX,
       minStep: CLIMATE_TEMPERATURE_STEP,
     };
-    service
-      .getCharacteristic(Characteristic.HeatingThresholdTemperature)
-      .setProps(temperatureProps);
-    service
-      .getCharacteristic(Characteristic.CoolingThresholdTemperature)
-      .setProps(temperatureProps);
+    // A new service starts with HAP's defaults (0 and 10 °C), below the 16 °C minimum. Move them
+    // into both the default and the new range first, or HAP warns about an illegal value.
+    for (const threshold of [
+      Characteristic.HeatingThresholdTemperature,
+      Characteristic.CoolingThresholdTemperature,
+    ]) {
+      const characteristic = service.getCharacteristic(threshold);
+      if (Number(characteristic.value) < CLIMATE_TEMPERATURE_MIN) {
+        characteristic.updateValue(CLIMATE_TEMPERATURE_MIN);
+      }
+      characteristic.setProps(temperatureProps);
+    }
     service
       .getCharacteristic(Characteristic.TargetHeaterCoolerState)
       .setProps({ validValues: [Characteristic.TargetHeaterCoolerState.AUTO] });
@@ -87,7 +93,7 @@ export class ClimateBinding extends ServiceBinding {
       });
 
     const onThreshold = (value: CharacteristicValue) => {
-      this.assertFresh();
+      this.assertCanSend();
       const celsius = clampTemperature(Number(value));
       this.pendingCelsius = celsius;
       setTimeout(() => {
@@ -183,6 +189,14 @@ export class ClimateBinding extends ServiceBinding {
     if (!vehicle || climateValues(vehicle).active !== true) {
       this.ctx.log.info(
         `Target temperature ${celsius} °C will be used on the next start`,
+      );
+      return;
+    }
+    // The data turned stale during the slider delay. A restart would send the stop, but the start
+    // would then be blocked, leaving the air conditioning off.
+    if (this.ctx.controller.isStale()) {
+      this.ctx.log.info(
+        `No current vehicle data; target temperature ${celsius} °C will be used on the next start`,
       );
       return;
     }

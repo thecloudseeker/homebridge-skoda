@@ -31,7 +31,7 @@ the entry is fixed.
 | Battery "Fuel"                                                   | Fuel level, low below the threshold (petrol, diesel, CNG, LPG)             | –                                              | on      |
 | Humidity sensor "Fuel Level"                                     | Fuel level in %, so you can build automations on it                        | –                                              | off     |
 | Outlet "Charging"                                                | _On_ = charging, _Outlet In Use_ = cable plugged in                        | Start / stop charging                          | on      |
-| Switches "Charge Limit 80 %", "90 %", "100 %"                    | On = the vehicle's charging limit                                          | Set charging limit                             | on      |
+| Switches "Charge Limit 80", "90", "100"                          | On = the vehicle's charging limit                                          | Set charging limit                             | on      |
 | Heater Cooler "Climate"                                          | Active, heating / cooling, target temperature                              | Start / stop air conditioning, set temperature | on      |
 | Switch "Auxiliary Heating"                                       | Running                                                                    | Start / stop (needs your S-PIN)                | on      |
 | Switch "Ventilation"                                             | Running, as far as the vehicle reports it (see notes)                      | Start / stop active ventilation                | off     |
@@ -87,9 +87,12 @@ and flashing, waking the vehicle up, cabin temperature, and push updates.
   until the vehicle reports that part again, at most 15 minutes. If the vehicle reports something
   else, for example because charging could not start, HomeKit shows what the vehicle reports.
 - **Stale data.** If the last successful update is older than three polling intervals, the sensors
-  show a fault (_StatusFault_). Battery, outlet, switches and the heater cooler have no fault
-  indicator in HomeKit, so they show "No Response" instead and send no commands, until the next
-  update succeeds. The Home app never shows an old state of a control as current.
+  show a fault (_StatusFault_). Battery, outlet, switches, the heater cooler and the lock have no
+  fault indicator in HomeKit, so they show "No Response" instead and send no commands, until the
+  next update succeeds. The same applies after a restart until the first update succeeds: usually
+  a few seconds, but as long as the API cannot be reached, or the API key is invalid. The Home app
+  never shows an old state of a control as current, and the log says once why commands are not
+  sent.
 
 ## Requirements
 
@@ -151,7 +154,7 @@ The easiest way is the Homebridge UI. In `config.json` it looks like this:
 | `name`                            | `Škoda <last 4 of VIN>` | Accessory name in HomeKit                                                                                                                                                                                                                                                          |
 | `vin`                             | –                       | Vehicle identification number (required)                                                                                                                                                                                                                                           |
 | `token`                           | –                       | API key (required)                                                                                                                                                                                                                                                                 |
-| `drive`                           | –                       | `electric`, `hybrid` or `combustion`. Only hides settings that do not apply in the Homebridge UI; the plugin detects what the vehicle supports either way                                                                                                                          |
+| `drive`                           | –                       | `electric`, `hybrid` (plug-in) or `combustion` (also mild hybrids). Only hides settings that do not apply in the Homebridge UI; the plugin detects what the vehicle supports either way                                                                                            |
 | `spin`                            | –                       | S-PIN, only needed for the auxiliary heating                                                                                                                                                                                                                                       |
 | `home.lat`, `home.lon`            | –                       | Home coordinates for the "Home" sensor                                                                                                                                                                                                                                             |
 | `home.radiusMeters`               | `150`                   | Radius around home, at least 10 m                                                                                                                                                                                                                                                  |

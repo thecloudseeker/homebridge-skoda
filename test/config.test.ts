@@ -109,6 +109,31 @@ describe("parseVehicleConfig", () => {
     });
   });
 
+  it("keeps the charge limit off for configs that turned the old lightbulb off", () => {
+    const off = (features: object) =>
+      parse({ ...base, features }).settings.features.chargingLimitPresets;
+    expect(off({ chargingLimit: false })).toBe(false);
+    // The settings form shows the switches as on, so the log explains until the new option is set.
+    expect(
+      parse({ ...base, features: { chargingLimit: false } }).warnings,
+    ).toEqual([
+      "vehicles[0].features.chargingLimit is replaced by chargingLimitPresets. The charge limit switches stay off, " +
+        'as the lightbulb was. The settings show "Charge limit switches" as on: uncheck it and save to keep them off, ' +
+        "or save as shown to turn them on",
+    ]);
+    expect(
+      parse({
+        ...base,
+        features: { chargingLimit: false, chargingLimitPresets: false },
+      }).warnings,
+    ).toEqual([]);
+    expect(off({ chargingLimit: false, chargingLimitPresets: true })).toBe(
+      true,
+    );
+    expect(off({ chargingLimit: true })).toBe(true);
+    expect(off({})).toBe(true);
+  });
+
   it("normalizes the VIN and accepts an S-PIN and home", () => {
     const { settings } = parse({
       ...base,

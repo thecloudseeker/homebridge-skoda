@@ -95,20 +95,13 @@ export class VehicleAccessory {
     const newUpdate =
       snapshot !== undefined && snapshot.fetchedAt !== this.lastFetchedAt;
     this.lastFetchedAt = snapshot?.fetchedAt ?? this.lastFetchedAt;
+    const support = this.countUnsupported(snapshot, newUpdate);
     let changed = false;
     for (const binding of this.bindings) {
       const enabled = this.ctx.settings.features[binding.feature];
-      const supported = snapshot
-        ? featureSupport(snapshot, binding.feature)
-        : undefined;
-      if (supported !== undefined && newUpdate) {
-        this.knownSupport.set(binding.feature, supported);
-      }
+      const supported = support.get(binding.feature);
       if (enabled && supported === false && binding.exists()) {
-        const count =
-          (this.unsupportedUpdates.get(binding.feature) ?? 0) +
-          (newUpdate ? 1 : 0);
-        this.unsupportedUpdates.set(binding.feature, count);
+        const count = this.unsupportedUpdates.get(binding.feature) ?? 0;
         if (count < REMOVE_AFTER_UNSUPPORTED_UPDATES) {
           binding.attach();
           binding.update(snapshot, stale);
@@ -116,12 +109,8 @@ export class VehicleAccessory {
         }
       }
       if (!enabled || supported === false) {
-        this.unsupportedUpdates.delete(binding.feature);
         changed = binding.detach() || changed;
         continue;
-      }
-      if (supported === true) {
-        this.unsupportedUpdates.delete(binding.feature);
       }
       if (supported === true || binding.exists()) {
         changed = binding.attach() || changed;
@@ -134,6 +123,47 @@ export class VehicleAccessory {
     if (snapshot && newUpdate) {
       this.logSupport();
     }
+  }
+
+  /**
+   * Works out support per feature and counts the updates that report a shown feature as
+   * unsupported. Several services can share a feature (the charge limit switches), so each
+   * feature is counted once per update, not once per service.
+   */
+  private countUnsupported(
+    snapshot: VehicleSnapshot | undefined,
+    newUpdate: boolean,
+  ): Map<keyof FeatureToggles, boolean | undefined> {
+    const support = new Map<keyof FeatureToggles, boolean | undefined>();
+    for (const binding of this.bindings) {
+      const { feature } = binding;
+      if (support.has(feature)) {
+        continue;
+      }
+      const supported = snapshot
+        ? featureSupport(snapshot, feature)
+        : undefined;
+      support.set(feature, supported);
+      if (supported !== undefined && newUpdate) {
+        this.knownSupport.set(feature, supported);
+      }
+      const enabled = this.ctx.settings.features[feature];
+      const shown = this.bindings.some(
+        (other) => other.feature === feature && other.exists(),
+      );
+      if (enabled && supported === false && shown) {
+        if (newUpdate) {
+          this.unsupportedUpdates.set(
+            feature,
+            (this.unsupportedUpdates.get(feature) ?? 0) + 1,
+          );
+        }
+      } else if (!enabled || supported !== undefined) {
+        // Supported again, turned off, or already removed: start counting from zero.
+        this.unsupportedUpdates.delete(feature);
+      }
+    }
+    return support;
   }
 
   /**

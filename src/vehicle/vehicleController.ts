@@ -45,7 +45,13 @@ type Listener = (snapshot: VehicleSnapshot | undefined) => void;
  * alone decides when to talk to the API, so the rate budget is never exceeded.
  */
 export class VehicleController {
+  /** What HomeKit shows: the last report with the expected state applied. */
   private current: VehicleSnapshot | undefined;
+  /**
+   * What the vehicle last reported, without the expected state. Parts that are temporarily
+   * unavailable are filled from here, so an expected state never outlives its 15 minutes.
+   */
+  private reported: VehicleSnapshot | undefined;
   private readonly listeners = new Set<Listener>();
   private readonly intervalMs: number;
   private pollTimer: NodeJS.Timeout | undefined;
@@ -54,6 +60,8 @@ export class VehicleController {
   private failures = 0;
   private lastErrorKey: string | undefined;
   private keyExpiryWarnedAt: number | undefined;
+  /** Whether the log already said that commands are blocked until the next update. */
+  private blockedCommandLogged = false;
   private readonly expected = new ExpectedState();
   private stopped = true;
   private readonly shutdown = new AbortController();
@@ -132,6 +140,20 @@ export class VehicleController {
     }
   }
 
+  /**
+   * Called when a command from HomeKit is not sent because the data is stale. Logs it once until
+   * the next successful update, so many taps in the Home app do not flood the log.
+   */
+  noteBlockedCommand(): void {
+    if (this.blockedCommandLogged) {
+      return;
+    }
+    this.blockedCommandLogged = true;
+    this.options.log.warn(
+      "No current vehicle data; commands from HomeKit are not sent until the next successful update",
+    );
+  }
+
   /** Warns ahead of the expiry announced in `X-API-Key-Expires-At`, at most once a day. */
   noteKeyExpiry(expiresAt: Date, now = Date.now()): void {
     const remainingMs = expiresAt.getTime() - now;
@@ -178,14 +200,14 @@ export class VehicleController {
       const response = await this.options.client.getVehicle();
       // Before merging, so the line shows what the vehicle reported, not the expected state.
       const reported = describeReport(response.vehicle);
-      this.current = this.expected.apply(
-        mergeSnapshot(this.current, response, Date.now()),
-      );
+      this.reported = mergeSnapshot(this.reported, response, Date.now());
+      this.current = this.expected.apply(this.reported);
       if (this.failures > 0 || this.lastErrorKey) {
         this.options.log.info("Connection to the MyŠkoda API restored");
       }
       this.failures = 0;
       this.lastErrorKey = undefined;
+      this.blockedCommandLogged = false;
       const notices = (response.errors ?? []).map((error) => error.type);
       this.options.log.debug(
         `Vehicle data updated (notices: ${notices.join(", ") || "none"})`,

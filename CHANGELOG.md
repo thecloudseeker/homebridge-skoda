@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0-beta.2
+
+- **Fixed:** the charge limit switches had names like "Charge Limit 80 %". HomeKit does not allow "%" in names, and HAP-NodeJS warned that the Home app might not add the vehicle or stop responding. They are now called "Charge Limit 80", "Charge Limit 90" and so on.
+- **Fixed:** a single update without the charge limit operation removed one of the charge limit switches, with its room and automations. A service is again removed only after two such updates, also when several switches share one feature.
+- **Fixed:** the stale data check now covers the lock too, and also applies after a restart until the first update succeeds. That takes longer while the API cannot be reached or the API key is invalid. The log says once why commands from HomeKit are not sent.
+- **Fixed:** if the data turned stale while a temperature change waited, the air conditioning was stopped but not started again. It now keeps running, and the new temperature is used on the next start.
+- **Fixed:** for a part the API reports as temporarily unavailable, the plugin kept the last shown value, which could still be the expected state of a command. That state could then outlast its 15 minutes. It now falls back to what the vehicle last reported.
+- **Fixed:** with remote air conditioning, HAP-NodeJS warned on every start that the temperature thresholds had an illegal value (0 and 10 °C, below the 16 °C minimum).
+- If you had turned off the charge limit lightbulb with `features.chargingLimit: false`, the charge limit switches stay off too. The settings show them as on, so the log explains how to keep them off until `chargingLimitPresets` is set.
+- The drive selection names mild hybrids under "Combustion", as they have no charging socket and the API reports them as combustion vehicles.
+- A test checks every name against HomeKit's naming rules. Development tools: rimraf 6.1.4.
+
 ## 0.5.0-beta.1
 
 - **Charge limit switches** replace the charge limit lightbulb: one switch per limit, by default 80, 90 and 100 % (`chargingLimits`, 50–100 in steps of 10). Turning one on sets that limit and turns the others off. As a lightbulb, the limit was changed by scenes and "all lights" commands, for example to 50 % when the room lights were dimmed.
@@ -8,7 +20,7 @@
 - When Homebridge shuts down, a temperature change that is still waiting is dropped, and a running air conditioning is not restarted halfway.
 - The request budget gives back the right slot when a response does not count (401, 403, 429). Before, it gave back the newest one, which could shift the request count by a few seconds.
 - Tests for the air conditioning restart, for the expected state that is kept at most 15 minutes, and with a config as the settings form really saved it. CI reports the test coverage.
-- Internal: the expected state after commands and the log texts for errors moved out of the vehicle controller into their own modules. 
+- Internal: the expected state after commands and the log texts for errors moved out of the vehicle controller into their own modules.
 
 ## 0.4.0
 

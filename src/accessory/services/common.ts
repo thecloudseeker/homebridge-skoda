@@ -136,6 +136,14 @@ export abstract class ServiceBinding {
     }
   }
 
+  /** Like `assertFresh()` for a change from HomeKit; the log says once why nothing is sent. */
+  protected assertCanSend(): void {
+    if (this.stale) {
+      this.ctx.controller.noteBlockedCommand();
+    }
+    this.assertFresh();
+  }
+
   /** Names do not come from the vehicle and stay readable, so the Home app keeps them. */
   private guardReads(service: Service): void {
     const { Name, ConfiguredName } = this.ctx.hap.Characteristic;
@@ -193,7 +201,7 @@ export abstract class ServiceBinding {
     send: (client: SkodaApiClient) => Promise<void>,
     options?: CommandOptions,
   ): Promise<void> {
-    this.assertFresh();
+    this.assertCanSend();
     try {
       await this.ctx.controller.runCommand(label, send, options);
     } catch {
