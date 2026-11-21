@@ -28,13 +28,14 @@ When something is relevant:
 
 ### Last check
 
-2026-11-03:
+2026-11-20:
 
-- API contract 1.1.0, unchanged. The OpenAPI document has a write-only, self-referencing property
-  `tings` on `Charging` and `ChargingProfile`; it looks like a generator artifact and never appears
-  in responses. Snapshot saved in dev/api/openapi.json.
-- skoda-public-api v1.4.0 released (operations list, plug state, charge limit). Open: #31 (heater
-  used as heat source for climatisation cannot be started through the public API), #36, #37.
-- Home Assistant requires `skoda-public-api==1.4.0` and has charging and active ventilation
-  switches (#190013). Open: #190215 (charging cable, air conditioning and auxiliary heating binary
-  sensors), #189826 (reauthentication), #189866 (vehicle image).
+- API contract 1.1.0, unchanged (no diff to dev/api/openapi.json). The write-only property `tings`
+  on `Charging` and `ChargingProfile` is still there and still looks like a generator artifact.
+- skoda-public-api still v1.4.0. Merged #42 (response headers and problem details kept on errors,
+  fixes #41). Open: #44 (set charge mode, update charging profiles), #43 (request to Škoda for
+  inside and outside temperature), #39 (one-day Citigo outage on 2026-11-05, every part
+  `*_UNAVAILABLE`), #36, #37.
+- Home Assistant requires `skoda-public-api==1.4.0`. Merged: charge limit number (#190966), binary
+  sensors for charging cable, air conditioning and auxiliary heating (#190215), reauthentication
+  (#189826). Open: climate entity (#191817), vehicle image (#189866).

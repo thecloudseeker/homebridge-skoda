@@ -13,21 +13,21 @@ than in a release:
 
 Each release lists the questions that have to be answered before or during its work.
 
-## 0.5.0: Charge limit presets, tests and verification
+## Open question from 0.5.0
 
-In progress (see the [changelog](../CHANGELOG.md)): one switch per configured limit replaces the
-lightbulb. The lightbulb is removed right away instead of after one more release, because 0.5.0 is
-still in beta; a config that had turned it off keeps the switches off. It also takes everything
-from the former 0.6.0 that needs no vehicle:
-stale data on the controls, the split of `VehicleController`, a test with a real saved config,
-the missing tests and the clean-ups. What needs a vehicle is in
-[Needs a charging vehicle](#needs-a-charging-vehicle).
-
-Open question that needs no vehicle:
+0.5.0 is released (see the [changelog](../CHANGELOG.md)). What needs a vehicle is in
+[Needs a charging vehicle](#needs-a-charging-vehicle). This question needs no vehicle:
 
 - **Does the Home app really offer no automation trigger for _Outlet In Use_?** Answer: try to
   create the automation with any outlet in the Home app. If it does offer one, the "Plugged In"
   sensor is optional.
+
+## 0.5.1: Stale data during an outage
+
+- **Count a response with every part unavailable as a failed update.** During a Škoda outage
+  every requested part comes back as `*_UNAVAILABLE` (skoda-public-api #39). Today that counts as
+  a successful update, so the controls never show "No Response". Count it as failed for stale
+  data, but do not back off, because the request itself worked.
 
 ## 0.6.0: Matter
 
@@ -77,6 +77,23 @@ Open questions:
   used up, that request gets a `429`, and the server's rate limit headers correct the budget right
   after. Answer: decide whether the budget should be saved across restarts.
 
+## 0.8.0: Charge modes
+
+The API sets the charge mode with `setChargeMode`, and the vehicle reports `availableChargeModes`
+and `preferredChargeMode` in the charging settings.
+
+- **One switch per available charge mode**, like the charge limit presets: turning one on sets
+  that mode and turns the others off. Only modes in `availableChargeModes` get a switch.
+- Test with fixtures; checking it with a real vehicle goes under
+  [Needs a charging vehicle](#needs-a-charging-vehicle).
+
+Open questions:
+
+- **Which modes are worth a switch, and what are they called?** For example "Charge Now" for
+  `MANUAL` and "Timer Charging" for `TIMER`. Modes such as `ONLY_OWN_CURRENT` or
+  `HOME_STORAGE_CHARGING` may never show up on a Škoda. Answer: skoda-public-api #44 and Home
+  Assistant once they ship it.
+
 ## Needs a charging vehicle
 
 These questions can only be answered with an electric or plug-in hybrid vehicle that charges. No
@@ -110,3 +127,5 @@ code in the next release after.
 - **Window heating as a switch.** The API offers no window heating command, so it stays a
   read-only sensor.
 - **Lock and unlock, honk and flash, wake up.** Not offered by the API.
+- **Changing charging profiles.** A profile is a whole set of timers and locations, and HomeKit
+  has nothing that fits it.
